@@ -1,0 +1,12 @@
+pkg: templates
+dest: "./templates"
+output: "templates.go"
+custom:
+  - files:
+    - "templates/mysql/"
+    base: "templates/mysql/"
+    prefix: "templates/mysql/"
+    
+compression:
+  compress: false
+  

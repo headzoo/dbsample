@@ -1,0 +1,12 @@
+{{ range .Views }}
+--
+-- Temporary view structure for view `{{ .Name }}`
+--
+
+{{ if not $.Args.SkipAddDropTable }}DROP TABLE IF EXISTS `{{ .Name }}`;{{ end }}
+{{ if not $.Args.SkipAddDropTable }}/*!50001 DROP VIEW IF EXISTS `{{ .Name }}`*/;{{ end }}
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = {{ .CharSet }};
+{{ .CreateSQL }};
+SET character_set_client = @saved_cs_client;
+{{ end }}
