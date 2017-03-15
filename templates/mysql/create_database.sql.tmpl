@@ -1,0 +1,8 @@
+--
+-- Current Database: `{{ .Database.Name }}`
+--
+
+/*!40000 DROP DATABASE IF EXISTS `{{ .Database.Name }}`*/;
+{{ .Database.CreateSQL }};
+
+USE `{{ .Database.Name }}`;

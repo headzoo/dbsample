@@ -38,6 +38,7 @@ type DumpArgs struct {
 	Limit            int
 	Routines         bool
 	Triggers         bool
+	SkipCreateDatabase bool
 	SkipLockTables   bool
 	SkipAddDropTable bool
 	ExtendedInsert   bool
@@ -58,11 +59,12 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 	kingpin.Flag("pass", "The database password.").Default("").Short('p').StringVar(&conn.Pass)
 	prompt := kingpin.Flag("prompt", "Prompt for the database password.").Bool()
 
-	kingpin.Flag("routines", "Dump store procedures and functions.").BoolVar(&args.Routines)
+	kingpin.Flag("routines", "Dump procedures and functions.").BoolVar(&args.Routines)
 	kingpin.Flag("triggers", "Dump triggers.").BoolVar(&args.Triggers)
 	kingpin.Flag("limit", "Max number of rows from each table to dump.").Default("100").Short('l').IntVar(&args.Limit)
-	kingpin.Flag("skip-lock-tables", "Skip lock tables.").BoolVar(&args.SkipLockTables)
-	kingpin.Flag("skip-add-drop-table", "Disable adding DROP TABLE.").BoolVar(&args.SkipAddDropTable)
+	kingpin.Flag("skip-create-database", "Disable adding CREATE DATABASE statement.").BoolVar(&args.SkipCreateDatabase)
+	kingpin.Flag("skip-lock-tables", "Disable locking tables on read.").BoolVar(&args.SkipLockTables)
+	kingpin.Flag("skip-add-drop-table", "Disable adding DROP TABLE statements.").BoolVar(&args.SkipAddDropTable)
 	kingpin.Flag("extended-insert", "Use multiple-row INSERT syntax that include several VALUES lists.").BoolVar(&args.ExtendedInsert)
 	kingpin.Arg("database", "Name of the database to dump.").Required().StringVar(&conn.Name)
 	kingpin.Parse()

@@ -16,6 +16,7 @@ const MySQL5DumperTemplatesPath = "./templates/mysql"
 
 // MySQL5DumperTemplateValues...
 type MySQL5DumperTemplateValues struct {
+	ShouldDumpDatabase bool
 	ShouldDumpTables   bool
 	ShouldDumpViews    bool
 	ShouldDumpRoutines bool
@@ -68,10 +69,11 @@ func (g *MySQL5Dumper) Dump(w io.Writer, db Database) error {
 		return err
 	}
 	vals := MySQL5DumperTemplateValues{
+		ShouldDumpDatabase: !g.args.SkipCreateDatabase,
 		ShouldDumpTables:   true,
 		ShouldDumpViews:    true,
-		ShouldDumpRoutines: true,
-		ShouldDumpTriggers: true,
+		ShouldDumpRoutines: g.args.Routines,
+		ShouldDumpTriggers: g.args.Triggers,
 		AppName:            Name,
 		AppVersion:         Version,
 		Database:           db,

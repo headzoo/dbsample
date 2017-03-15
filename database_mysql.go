@@ -18,6 +18,7 @@ type MySQLDatabase struct {
 	server    *Server
 	charSet   string
 	collation string
+	createSQL string
 }
 
 // NewMySQLDatabase returns a new *MySQLDatabase instance.
@@ -48,6 +49,26 @@ func (db *MySQLDatabase) CharSet() string {
 // Collation...
 func (db *MySQLDatabase) Collation() string {
 	return db.collation
+}
+
+// CreateSQL...
+func (db *MySQLDatabase) CreateSQL() (string, error) {
+	if db.createSQL == "" {
+		rows, err := db.server.query("SHOW CREATE DATABASE %s", MySQLBacktick(db.name))
+		if err != nil {
+			return "", err
+		}
+		defer rows.Close()
+
+		if !rows.Next() {
+			return "", fmt.Errorf("SHOW CREATE DATABASE %s returned 0 rows", MySQLBacktick(db.name))
+		}
+		var a string
+		if err = rows.Scan(&a, &db.createSQL); err != nil {
+			return "", err
+		}
+	}
+	return db.createSQL, nil
 }
 
 // Tables...

@@ -1,4 +1,5 @@
 {{ template "templates/mysql/header.sql.tmpl" . }}
+{{ if .ShouldDumpDatabase }}{{ template "templates/mysql/create_database.sql.tmpl" . }}{{ end }}
 {{ if .ShouldDumpTables }}{{ template "templates/mysql/create_tables.sql.tmpl" . }}{{ end }}
 {{ if .ShouldDumpViews }}{{ template "templates/mysql/create_views_temp.sql.tmpl" . }}{{ end }}
 {{ if .ShouldDumpRoutines }}{{ template "templates/mysql/create_routines.sql.tmpl" . }}{{ end }}
