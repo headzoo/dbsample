@@ -1,10 +1,12 @@
 package dbsampler
 
+// Database queries a database.
 type Database interface {
-	Server() *Server
 	Name() string
 	CharSet() string
 	Collation() string
-	Tables(limit int) (TableGraph, error)
-	Generator() (Generator, error)
+	Tables() (TableGraph, error)
+	Views() (ViewGraph, error)
+	Routines() (RoutineGraph, error)
+	Server() *Server
 }

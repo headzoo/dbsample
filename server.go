@@ -9,8 +9,8 @@ import (
 
 // Server...
 type Server struct {
-	conn    *Connection
-	args    *Args
+	conn    *ConnectionArgs
+	args    *DumpArgs
 	db      *gosql.DB
 	version string
 	major   string
@@ -19,7 +19,7 @@ type Server struct {
 }
 
 // NewServer returns a new *Server instance.
-func NewServer(conn *Connection, args *Args) *Server {
+func NewServer(conn *ConnectionArgs, args *DumpArgs) *Server {
 	return &Server{
 		conn: conn,
 		args: args,
@@ -46,24 +46,25 @@ func (s *Server) Close() error {
 
 // Database returns a new Database instance.
 func (s *Server) Database(name string) (Database, error) {
-	db := &MySQLDatabase{
-		name:   name,
-		server: s,
-		args:   s.args,
-	}
-	meta, err := s.selectDatabaseMeta(name)
+	charSet, collation, err := s.selectDatabaseCharSet(name)
 	if err != nil {
 		return nil, err
 	}
-	db.charSet = meta.CharacterSet
-	db.collation = meta.Collation
-	return db, nil
+
+	switch s.conn.Driver {
+	case DriverMySQL:
+		switch s.major {
+		case "5":
+			return NewMySQLDatabase(s, name, charSet, collation), nil
+		}
+	}
+	return nil, fmt.Errorf("Database not available for %s %s", s.conn.Driver, s.major)
 }
 
 // Variable...
 func (s *Server) Variable(v string) (string, error) {
 	var row string
-	rows, err := s.Query("SELECT @@%s", v)
+	rows, err := s.query("SELECT @@%s", v)
 	if err != nil {
 		return row, err
 	}
@@ -75,10 +76,20 @@ func (s *Server) Variable(v string) (string, error) {
 	return row, nil
 }
 
-// Select...
-func (s *Server) Select(b *SelectBuilder) (Rows, error) {
+// Version...
+func (s *Server) Version() string {
+	return s.version
+}
+
+// VersionNumber...
+func (s *Server) VersionNumber() string {
+	return fmt.Sprintf("%s%02s%02s", s.major, s.minor, s.rev)
+}
+
+// selectRows...
+func (s *Server) selectRows(sql string) (Rows, error) {
 	res := make(Rows, 0)
-	rows, err := s.Query(b.SQL())
+	rows, err := s.query(sql)
 	if err != nil {
 		return res, err
 	}
@@ -119,8 +130,8 @@ func (s *Server) Select(b *SelectBuilder) (Rows, error) {
 	return res, nil
 }
 
-// Query...
-func (s *Server) Query(sql string, args ...interface{}) (*gosql.Rows, error) {
+// query...
+func (s *Server) query(sql string, args ...interface{}) (*gosql.Rows, error) {
 	sql = fmt.Sprintf(sql, args...)
 	rows, err := s.db.Query(sql)
 	if err != nil {
@@ -129,47 +140,39 @@ func (s *Server) Query(sql string, args ...interface{}) (*gosql.Rows, error) {
 	return rows, nil
 }
 
-// Exec...
-func (s *Server) Exec(sql string, args ...interface{}) error {
+// exec...
+func (s *Server) exec(sql string, args ...interface{}) error {
 	sql = fmt.Sprintf(sql, args...)
 	_, err := s.db.Exec(sql)
 	return err
 }
 
-// Version...
-func (s *Server) Version() string {
-	return s.version
-}
-
-// VersionNumber...
-func (s *Server) VersionNumber() string {
-	return fmt.Sprintf("%s%02s%02s", s.major, s.minor, s.rev)
-}
-
-// selectDatabaseMeta...
-func (s *Server) selectDatabaseMeta(name string) (meta, error) {
-	var m meta
-	rows, err := s.Query(
+// selectDatabaseCharSet...
+func (s *Server) selectDatabaseCharSet(name string) (charSet string, collation string, err error) {
+	var rows *gosql.Rows
+	if rows, err = s.query(
 		"SELECT `DEFAULT_CHARACTER_SET_NAME`, `DEFAULT_COLLATION_NAME` "+
 			"FROM `INFORMATION_SCHEMA`.`SCHEMATA` "+
 			"WHERE `SCHEMA_NAME` = '%s' "+
 			"LIMIT 1",
 		name,
-	)
-	if err != nil {
-		return m, err
+	); err != nil {
+		return
 	}
 	defer rows.Close()
-	rows.Next()
-	if err := rows.Scan(&m.CharacterSet, &m.Collation); err != nil {
-		return m, err
+	if !rows.Next() {
+		err = fmt.Errorf("SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME returned 0 rows")
+		return
 	}
-	return m, err
+	if err = rows.Scan(&charSet, &collation); err != nil {
+		return
+	}
+	return
 }
 
 // setVersion...
 func (s *Server) setVersion() error {
-	ver, err := s.Variable(variableVersion)
+	ver, err := s.Variable("version")
 	if err != nil {
 		return err
 	}
@@ -181,9 +184,4 @@ func (s *Server) setVersion() error {
 	s.minor = vp[1]
 	s.rev = vp[2]
 	return nil
-}
-
-type meta struct {
-	CharacterSet string
-	Collation    string
 }

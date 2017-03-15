@@ -1,19 +1,31 @@
 package dbsampler
 
 import (
+	gosql "database/sql"
+	"errors"
 	"fmt"
+	"github.com/deckarep/golang-set"
 	"regexp"
 )
 
 var air = regexp.MustCompile(`AUTO_INCREMENT=[\d]+ `)
 
-// MySQLDatabase...
+// MySQLDatabase implements Database for MySQL.
 type MySQLDatabase struct {
 	name      string
 	server    *Server
 	charSet   string
 	collation string
-	args      *Args
+}
+
+// NewMySQLDatabase returns a new *MySQLDatabase instance.
+func NewMySQLDatabase(server *Server, name, charSet, collation string) *MySQLDatabase {
+	return &MySQLDatabase{
+		server:    server,
+		name:      name,
+		charSet:   charSet,
+		collation: collation,
+	}
 }
 
 // Server...
@@ -37,175 +49,148 @@ func (db *MySQLDatabase) Collation() string {
 }
 
 // Tables...
-func (db *MySQLDatabase) Tables(limit int) (TableGraph, error) {
-	var tables TableGraph
-	var others TableGraph
-	var err error
-	var sql string
-
-	schemas, err := db.schemas()
-	if err != nil {
-		return tables, err
-	}
-	for _, schema := range schemas {
-		switch schema.Type {
-		case schemaTypeBaseTable:
-			if sql, err = db.showCreateTable(schema.Name); err != nil {
-				return tables, err
-			}
-			deps, err := db.tableDependencies(schema.Name)
-			if err != nil {
-				return tables, err
-			}
-			tables = append(tables, NewTable(schema.Name, sql, deps))
-		case schemaTypeView:
-			if sql, err = db.showCreateView(schema.Name); err != nil {
-				return tables, err
-			}
-			others = append(others, NewView(schema.Name, sql))
-		case schemaTypeProcedure:
-			if db.args.Routines {
-				if sql, err = db.showCreateRoutine(schema.Name); err != nil {
-					return tables, err
-				}
-				others = append(others, NewProcedure(schema.Name, sql))
-			}
-		case schemaTypeFunction:
-			if db.args.Routines {
-				if sql, err = db.showCreateRoutine(schema.Name); err != nil {
-					return tables, err
-				}
-				others = append(others, NewFunction(schema.Name, sql))
-			}
-		case schemaTypeTrigger:
-			if db.args.Triggers {
-				if sql, err = db.showCreateTrigger(schema.Name); err != nil {
-					return tables, err
-				}
-				others = append(others, NewTrigger(schema.Name, sql))
-			}
-		default:
-			return tables, fmt.Errorf("Unknown schema type '%s'", schema.Type)
-		}
-	}
-
-	if tables, err = ResolveTableGraph(tables); err != nil {
-		return tables, err
-	}
-	if err := db.tableRows(tables, limit); err != nil {
-		return tables, err
-	}
-	tables = append(tables, others...)
-
-	return tables, nil
-}
-
-// Generator...
-func (db *MySQLDatabase) Generator() (Generator, error) {
-	switch db.server.major {
-	case "5":
-		return NewMySQL5Generator(db.args), nil
-	}
-	return nil, fmt.Errorf("Generator not available for %s %s", db.server.conn.Driver, db.server.major)
-}
-
-// schemas...
-func (db *MySQLDatabase) schemas() ([]Schema, error) {
-	var schemas []Schema
-	rows, err := db.server.Query(
-		"SELECT `TABLE_NAME`, `TABLE_TYPE` "+
+func (db *MySQLDatabase) Tables() (tables TableGraph, err error) {
+	var rows *gosql.Rows
+	if rows, err = db.server.query(
+		"SELECT `TABLE_NAME`, `TABLE_COLLATION` "+
 			"FROM `INFORMATION_SCHEMA`.`TABLES` "+
-			"WHERE `TABLE_SCHEMA` = '%s'",
-		db.name)
-	if err != nil {
-		return schemas, err
+			"WHERE `TABLE_SCHEMA` = %s "+
+			"AND `TABLE_TYPE` = 'BASE TABLE'",
+		quote(db.name),
+	); err != nil {
+		return
 	}
 	defer rows.Close()
+
+	tables = make(TableGraph, 0)
 	for rows.Next() {
-		var s Schema
-		if err := rows.Scan(&s.Name, &s.Type); err != nil {
-			return schemas, err
+		table := &Table{}
+		if err = rows.Scan(&table.Name, &table.Collation); err != nil {
+			return
 		}
-		schemas = append(schemas, s)
+		if err = db.setTableDependencies(table); err != nil {
+			return
+		}
+		if err = db.setTableCreateSQL(table); err != nil {
+			return
+		}
+		table.CharSet = db.charSet
+		tables = append(tables, table)
 	}
-	rows.Close()
-
-	if db.args.Routines {
-		rows, err = db.server.Query("SELECT `name`, `type` FROM `mysql`.`proc` WHERE `db` = '%s'", db.name)
-		if err != nil {
-			return schemas, err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var s Schema
-			if err := rows.Scan(&s.Name, &s.Type); err != nil {
-				return schemas, err
+	if err = db.setTableGraphRows(tables); err != nil {
+		return
+	}
+	if tables, err = db.resolveTableGraph(tables); err != nil {
+		return
+	}
+	if db.server.args.Triggers {
+		for _, table := range tables {
+			if err = db.setTableTriggers(table); err != nil {
+				return
 			}
-			schemas = append(schemas, s)
 		}
-		rows.Close()
 	}
-
-	if db.args.Triggers {
-		rows, err := db.server.Query(
-			"SELECT `TRIGGER_NAME` "+
-				"FROM `INFORMATION_SCHEMA`.`TRIGGERS` "+
-				"WHERE `TRIGGER_SCHEMA` LIKE '%s%%'",
-			db.name)
-		if err != nil {
-			return schemas, err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var s Schema
-			if err := rows.Scan(&s.Name); err != nil {
-				return schemas, err
-			}
-			s.Type = schemaTypeTrigger
-			schemas = append(schemas, s)
-		}
-		rows.Close()
-	}
-
-	return schemas, err
+	return
 }
 
-// tableDependencies...
-func (db *MySQLDatabase) tableDependencies(tableName string) ([]Dependency, error) {
-	deps := []Dependency{}
-	rows, err := db.server.Query(
+// Views...
+func (db *MySQLDatabase) Views() (views ViewGraph, err error) {
+	var rows *gosql.Rows
+	if rows, err = db.server.query(
+		"SELECT `TABLE_NAME` "+
+			"FROM `INFORMATION_SCHEMA`.`TABLES` "+
+			"WHERE `TABLE_SCHEMA` = %s "+
+			"AND `TABLE_TYPE` = 'VIEW'",
+		quote(db.name),
+	); err != nil {
+		return
+	}
+	defer rows.Close()
+
+	views = make(ViewGraph, 0)
+	for rows.Next() {
+		view := &View{}
+		if err = rows.Scan(&view.Name); err != nil {
+			return
+		}
+		if err = db.setViewCreateSQL(view); err != nil {
+			return
+		}
+		view.CharSet = db.charSet
+		view.Collation = db.collation
+		views = append(views, view)
+	}
+	return
+}
+
+// Routines...
+func (db *MySQLDatabase) Routines() (routines RoutineGraph, err error) {
+	if !db.server.args.Routines {
+		return
+	}
+
+	var rows *gosql.Rows
+	rows, err = db.server.query(
+		"SELECT `name`, `type`, `character_set_client`, `collation_connection` FROM `mysql`.`proc` WHERE `db` = %s",
+		quote(db.name),
+	)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	routines = make(RoutineGraph, 0)
+	for rows.Next() {
+		routine := &Routine{}
+		if err = rows.Scan(&routine.Name, &routine.Type, &routine.CharSet, &routine.Collation); err != nil {
+			return
+		}
+		if err = db.setRoutineCreateSQL(routine); err != nil {
+			return
+		}
+		routines = append(routines, routine)
+	}
+	return
+}
+
+// setTableDependencies...
+func (db *MySQLDatabase) setTableDependencies(table *Table) (err error) {
+	var rows *gosql.Rows
+	if rows, err = db.server.query(
 		"SELECT `REFERENCED_TABLE_NAME`, `REFERENCED_COLUMN_NAME`, `COLUMN_NAME` "+
 			"FROM `INFORMATION_SCHEMA`.`KEY_COLUMN_USAGE` "+
-			"WHERE `REFERENCED_TABLE_SCHEMA` = '%s' "+
-			"AND `TABLE_NAME` = '%s'",
-		db.name,
-		tableName)
-	if err != nil {
-		return deps, err
+			"WHERE `REFERENCED_TABLE_SCHEMA` = %s "+
+			"AND `TABLE_NAME` = %s",
+		quote(db.name),
+		quote(table.Name),
+	); err != nil {
+		return
 	}
 	defer rows.Close()
+
+	table.Dependencies = []*Dependency{}
 	for rows.Next() {
-		var dep Dependency
-		if err := rows.Scan(&dep.TableName, &dep.ColumnName, &dep.ReferencedColumnName); err != nil {
-			return deps, err
+		dep := &Dependency{}
+		if err = rows.Scan(&dep.TableName, &dep.ColumnName, &dep.ReferencedColumnName); err != nil {
+			return
 		}
-		deps = append(deps, dep)
+		table.Dependencies = append(table.Dependencies, dep)
 	}
-	return deps, nil
+	return
 }
 
-// tableRows...
-func (db *MySQLDatabase) tableRows(tg TableGraph, limit int) (err error) {
+// setTableGraphRows...
+func (db *MySQLDatabase) setTableGraphRows(tg TableGraph) (err error) {
 	defer func() {
-		if !db.args.SkipLockTables {
-			err = db.server.Exec(sqlUnlockTables)
+		if !db.server.args.SkipLockTables {
+			err = db.server.exec("UNLOCK TABLES")
 		}
 	}()
 
 	tableRows := map[string]Rows{}
 	for _, table := range tg {
 		b := NewSelectBuilder(table)
-		b.Limit = limit
+		b.Limit = db.server.args.Limit
 		if len(table.Dependencies) > 0 {
 			for _, dep := range table.Dependencies {
 				refRows := tableRows[dep.TableName]
@@ -217,18 +202,18 @@ func (db *MySQLDatabase) tableRows(tg TableGraph, limit int) (err error) {
 			}
 		}
 
-		if !db.args.SkipLockTables {
-			if err = db.server.Exec(sqlLockTablesReadLocal, backtick(table.Name)); err != nil {
+		if !db.server.args.SkipLockTables {
+			if err = db.server.exec("LOCK TABLES %s READ LOCAL", backtick(table.Name)); err != nil {
 				return
 			}
 		}
 		var rows Rows
-		rows, err = db.server.Select(b)
+		rows, err = db.server.selectRows(b.SQL())
 		if err != nil {
 			return
 		}
-		if !db.args.SkipLockTables {
-			if err = db.server.Exec(sqlUnlockTables); err != nil {
+		if !db.server.args.SkipLockTables {
+			if err = db.server.exec("UNLOCK TABLES"); err != nil {
 				return
 			}
 		}
@@ -238,115 +223,170 @@ func (db *MySQLDatabase) tableRows(tg TableGraph, limit int) (err error) {
 	return
 }
 
+// setTableTriggers...
+func (db *MySQLDatabase) setTableTriggers(table *Table) (err error) {
+	var rows *gosql.Rows
+	if rows, err = db.server.query(
+		"SELECT `TRIGGER_NAME` "+
+			"FROM `INFORMATION_SCHEMA`.`TRIGGERS` "+
+			"WHERE `TRIGGER_SCHEMA` LIKE %s "+
+			"AND `EVENT_OBJECT_TABLE` = %s",
+		quote(db.name+"%"),
+		quote(table.Name),
+	); err != nil {
+		return
+	}
+	defer rows.Close()
+
+	table.Triggers = TriggerGraph{}
+	for rows.Next() {
+		trigger := &Trigger{}
+		if err = rows.Scan(&trigger.Name); err != nil {
+			return
+		}
+		if err = db.setTriggerCreateSQL(trigger); err != nil {
+			return
+		}
+		table.Triggers = append(table.Triggers, trigger)
+	}
+	return
+}
+
 // showCreateTable...
-func (db *MySQLDatabase) showCreateTable(tableName string) (string, error) {
-	var row string
-	rows, err := db.server.Query("SHOW CREATE TABLE %s", backtick(tableName))
-	if err != nil {
-		return row, err
+func (db *MySQLDatabase) setTableCreateSQL(table *Table) (err error) {
+	var rows *gosql.Rows
+	if rows, err = db.server.query("SHOW CREATE TABLE %s", backtick(table.Name)); err != nil {
+		return
 	}
 	defer rows.Close()
-	for rows.Next() {
-		var a string
-		if err := rows.Scan(&a, &row); err != nil {
-			return row, err
-		}
+
+	if !rows.Next() {
+		err = fmt.Errorf("SHOW CREATE TABLE %s returned 0 rows", backtick(table.Name))
+		return
 	}
-	return air.ReplaceAllString(row, ""), nil
+	var a string
+	if err = rows.Scan(&a, &table.CreateSQL); err != nil {
+		return
+	}
+	table.CreateSQL = air.ReplaceAllString(table.CreateSQL, "")
+	return
 }
 
-// showCreateView...
-func (db *MySQLDatabase) showCreateView(viewName string) (string, error) {
-	var row string
-	rows, err := db.server.Query("SHOW CREATE VIEW %s", backtick(viewName))
-	if err != nil {
-		return row, err
+// setViewCreateSQL...
+func (db *MySQLDatabase) setViewCreateSQL(view *View) (err error) {
+	var rows *gosql.Rows
+	if rows, err = db.server.query("SHOW CREATE VIEW %s", backtick(view.Name)); err != nil {
+		return
 	}
 	defer rows.Close()
-	for rows.Next() {
-		var a string
-		var b string
-		var c string
-		if err := rows.Scan(&a, &row, &b, &c); err != nil {
-			return row, err
-		}
+
+	if !rows.Next() {
+		err = fmt.Errorf("SHOW CREATE VIEW %s returned 0 rows", backtick(view.Name))
+		return
 	}
-	return row, nil
+	var a string
+	var b string
+	var c string
+	if err = rows.Scan(&a, &view.CreateSQL, &b, &c); err != nil {
+		return
+	}
+	return
 }
 
-// showCreateRoutine...
-func (db *MySQLDatabase) showCreateRoutine(name string) (string, error) {
-	rows, err := db.server.Query(
+// setRoutineCreateSQL...
+func (db *MySQLDatabase) setRoutineCreateSQL(r *Routine) (err error) {
+	var rows *gosql.Rows
+	rows, err = db.server.query(
 		"SELECT `type`, `body_utf8`, `security_type`, `definer`, `param_list`, `returns`, `is_deterministic` "+
 			"FROM `mysql`.`proc` "+
 			"WHERE `name` = %s "+
 			"AND `db` = %s",
-		quote(name),
+		quote(r.Name),
 		quote(db.name),
 	)
 	if err != nil {
-		return "", err
+		return
 	}
 	defer rows.Close()
-	rows.Next()
 
-	var body string
-	var typ string
-	var securityType string
-	var definer string
-	var paramList string
-	var returns string
-	var isDet string
-	if err := rows.Scan(&typ, &body, &securityType, &definer, &paramList, &returns, &isDet); err != nil {
-		return "", err
+	if !rows.Next() {
+		err = fmt.Errorf("SHOW CREATE ROUTINE %s returned 0 rows", backtick(r.Name))
+		return
 	}
-
-	var row string
-	if typ == schemaTypeProcedure {
-		row = fmt.Sprintf(
-			"CREATE %s=%s PROCEDURE %s (%s)\n%s",
-			securityType,
-			backtickUser(definer),
-			backtick(name),
-			paramList,
-			body,
-		)
-	} else {
-		det := ""
-		if isDet == "YES" {
-			det = "\tDETERMINISTIC\n"
-		}
-		row = fmt.Sprintf(
-			"CREATE %s=%s FUNCTION %s (%s) RETURNS %s\n%s%s",
-			securityType,
-			backtickUser(definer),
-			backtick(name),
-			paramList,
-			returns,
-			det,
-			body,
-		)
+	if err = rows.Scan(&r.Type, &r.CreateSQL, &r.SecurityType, &r.Definer, &r.ParamList, &r.Returns, &r.IsDeterministic); err != nil {
+		return
 	}
-
-	return row, nil
+	return
 }
 
-// showCreateTrigger...
-func (db *MySQLDatabase) showCreateTrigger(name string) (string, error) {
-	var row string
-	rows, err := db.server.Query("SHOW CREATE TRIGGER %s", backtick(name))
-	if err != nil {
-		return row, err
+// setTriggerCreateSQL...
+func (db *MySQLDatabase) setTriggerCreateSQL(t *Trigger) (err error) {
+	var rows *gosql.Rows
+	if rows, err = db.server.query("SHOW CREATE TRIGGER %s", backtick(t.Name)); err != nil {
+		return
 	}
 	defer rows.Close()
-	rows.Next()
+
+	if !rows.Next() {
+		err = fmt.Errorf("SHOW CREATE TRIGGER %s returned 0 rows", backtick(t.Name))
+		return
+	}
 	var a string
 	var b string
-	var c string
-	var d string
-	var e string
-	if err := rows.Scan(&a, &b, &row, &c, &d, &e); err != nil {
-		return row, err
+	if err = rows.Scan(&a, &t.SQLMode, &t.CreateSQL, &t.CharSet, &t.Collation, &b); err != nil {
+		return
 	}
-	return row, nil
+	return
+}
+
+// resolveTableGraph resolves table dependencies.
+func (db *MySQLDatabase) resolveTableGraph(graph TableGraph) (TableGraph, error) {
+	tableNames := make(map[string]*Table)
+	tableDeps := make(map[string]mapset.Set)
+	for _, table := range graph {
+		depSet := mapset.NewSet()
+		for _, dep := range table.Dependencies {
+			depSet.Add(dep.TableName)
+		}
+		tableNames[table.Name] = table
+		tableDeps[table.Name] = depSet
+	}
+
+	// Iteratively find and remove nodes from the graph which have no dependencies.
+	// If at some point there are still nodes in the graph and we cannot find
+	// nodes without dependencies, that means we have a circular dependency
+	var resolved TableGraph
+	for len(tableDeps) != 0 {
+		// Get all nodes from the graph which have no dependencies
+		readySet := mapset.NewSet()
+		for tableName, deps := range tableDeps {
+			if deps.Cardinality() == 0 {
+				readySet.Add(tableName)
+			}
+		}
+
+		// If there aren't any ready nodes, then we have a cicular dependency
+		if readySet.Cardinality() == 0 {
+			var g TableGraph
+			for tableName := range tableDeps {
+				g = append(g, tableNames[tableName])
+			}
+			return g, errors.New("Circular dependency found")
+		}
+
+		// Remove the ready nodes and add them to the resolved graph
+		for tableName := range readySet.Iter() {
+			delete(tableDeps, tableName.(string))
+			resolved = append(resolved, tableNames[tableName.(string)])
+		}
+
+		// Also make sure to remove the ready nodes from the
+		// remaining node dependencies as well
+		for tableName, deps := range tableDeps {
+			diff := deps.Difference(readySet)
+			tableDeps[tableName] = diff
+		}
+	}
+
+	return resolved, nil
 }

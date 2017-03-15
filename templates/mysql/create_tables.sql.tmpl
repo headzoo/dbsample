@@ -19,4 +19,6 @@ LOCK TABLES `{{ .Name }}` WRITE;
 {{ end }}
 /*!40000 ALTER TABLE `{{ .Name }}` ENABLE KEYS */;
 UNLOCK TABLES;
+
+{{ if $.ShouldDumpTriggers }}{{ template "templates/mysql/create_triggers.sql.tmpl" . }}{{ end }}
 {{ end }}
