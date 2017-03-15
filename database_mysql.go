@@ -7,6 +7,7 @@ import (
 	"github.com/deckarep/golang-set"
 	"regexp"
 	"strings"
+	"bytes"
 )
 
 var air = regexp.MustCompile(`AUTO_INCREMENT=[\d]+ `)
@@ -422,14 +423,32 @@ func (db *MySQLDatabase) buildWhereIn(conditions map[string][]string) string {
 }
 
 // MySQLEscape...
+// @see https://dev.mysql.com/doc/refman/5.7/en/string-literals.html
 func MySQLEscape(val string) string {
- 	val = strings.Replace(val, `\`, `\\`, -1)
- 	val = strings.Replace(val, `'`, `\'`, -1)
- 	val = strings.Replace(val, "\b", `\b`, -1)
- 	val = strings.Replace(val, "\n", `\n`, -1)
- 	val = strings.Replace(val, "\r", `\r`, -1)
- 	val = strings.Replace(val, "\t", `\t`, -1)
- 	return val
+	b := bytes.Buffer{}
+	for _, c := range val {
+		switch c {
+		case '\000':
+			b.WriteString(`\0`)
+		case '\033':
+			b.WriteString(`\Z`)
+		case '\'':
+			b.WriteString(`\'`)
+		case '\b':
+			b.WriteString(`\b`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		case '\\':
+			b.WriteString(`\\`)
+		default:
+			b.WriteRune(c)
+		}
+	}
+ 	return b.String()
 }
 
 // MySQLBacktick...
