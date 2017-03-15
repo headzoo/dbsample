@@ -7,7 +7,7 @@ import (
 
 const (
 	Name    = "DBSampler"
-	Version = "1.0"
+	Version = "0.1"
 )
 
 var IsDebugBuild = false
