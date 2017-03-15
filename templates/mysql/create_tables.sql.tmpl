@@ -15,8 +15,7 @@
 
 LOCK TABLES `{{ .Name }}` WRITE;
 /*!40000 ALTER TABLE `{{ .Name }}` DISABLE KEYS */;
-{{ range .Inserts }}{{ . }};
-{{ end }}
+{{ .|TableInserts }}
 /*!40000 ALTER TABLE `{{ .Name }}` ENABLE KEYS */;
 UNLOCK TABLES;
 

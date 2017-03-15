@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	Name    = "Database Sampler"
+	Name    = "DBSampler"
 	Version = "1.0"
 )
 

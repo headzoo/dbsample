@@ -7,17 +7,12 @@ import (
 	"io"
 	"io/ioutil"
 	"path"
+	"strings"
 	"text/template"
 	"time"
 )
 
 const MySQL5DumperTemplatesPath = "./templates/mysql"
-
-// MySQL5DumperTemplateTable...
-type MySQL5DumperTemplateTable struct {
-	*Table
-	Inserts []string
-}
 
 // MySQL5DumperTemplateValues...
 type MySQL5DumperTemplateValues struct {
@@ -34,7 +29,7 @@ type MySQL5DumperTemplateValues struct {
 	Args               *DumpArgs
 	Connection         *ConnectionArgs
 	Server             *Server
-	Tables             []MySQL5DumperTemplateTable
+	Tables             TableGraph
 	Views              ViewGraph
 	Routines           RoutineGraph
 }
@@ -86,7 +81,7 @@ func (g *MySQL5Dumper) Dump(w io.Writer, db Database) error {
 		DumpDate:           time.Now().Format("2006-01-02 15:04:05"),
 		Connection:         db.Server().conn,
 		Server:             db.Server(),
-		Tables:             g.prepareTemplateTables(tables),
+		Tables:             tables,
 		Views:              views,
 		Routines:           routines,
 	}
@@ -96,36 +91,12 @@ func (g *MySQL5Dumper) Dump(w io.Writer, db Database) error {
 	return nil
 }
 
-// prepareTemplateTables...
-func (g *MySQL5Dumper) prepareTemplateTables(tables TableGraph) []MySQL5DumperTemplateTable {
-	tmplTables := []MySQL5DumperTemplateTable{}
-	for _, table := range tables {
-		t := MySQL5DumperTemplateTable{
-			Table:   table,
-			Inserts: []string{},
-		}
-		for _, row := range table.Rows {
-			vals := []string{}
-			cols := []string{}
-			for c, v := range row {
-				vals = append(vals, v)
-				cols = append(cols, c)
-			}
-			t.Inserts = append(t.Inserts, fmt.Sprintf(
-				"INSERT INTO %s (%s) VALUES(%s)",
-				backtick(t.Name),
-				joinColumns(cols),
-				joinValues(vals),
-			))
-		}
-		tmplTables = append(tmplTables, t)
-	}
-
-	return tmplTables
-}
-
 // parseTemplates...
 func (g *MySQL5Dumper) parseTemplates() error {
+	g.templates.Funcs(template.FuncMap{
+		"TableInserts": g.tableInserts,
+	})
+
 	files, err := ioutil.ReadDir(MySQL5DumperTemplatesPath)
 	if err != nil {
 		return err
@@ -153,4 +124,44 @@ func (g *MySQL5Dumper) parseTemplateFile(file string) error {
 		return err
 	}
 	return nil
+}
+
+// tableInserts...
+func (g *MySQL5Dumper) tableInserts(table *Table) string {
+	if len(table.Rows) == 0 {
+		return ""
+	}
+
+	cols := []string{}
+	for col, _ := range table.Rows[0] {
+		cols = append(cols, col)
+	}
+	columns := MySQLJoinColumns(cols)
+
+	if g.args.ExtendedInsert {
+		inserts := []string{}
+		for _, row := range table.Rows {
+			vals := []string{}
+			for _, v := range row {
+				vals = append(vals, v)
+			}
+			inserts = append(inserts, fmt.Sprintf(
+				"INSERT INTO `%s` (%s) VALUES(%s);",
+				table.Name,
+				columns,
+				MySQLJoinValues(vals),
+			))
+		}
+		return strings.Join(inserts, "\n")
+	} else {
+		values := []string{}
+		for _, row := range table.Rows {
+			vals := []string{}
+			for _, v := range row {
+				vals = append(vals, v)
+			}
+			values = append(values, fmt.Sprintf("(%s)", MySQLJoinValues(vals)))
+		}
+		return fmt.Sprintf("INSERT INTO `%s` (%s) VALUES %s;\n", table.Name, columns, strings.Join(values, ","))
+	}
 }

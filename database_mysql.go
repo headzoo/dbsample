@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/deckarep/golang-set"
 	"regexp"
+	"strings"
 )
 
 var air = regexp.MustCompile(`AUTO_INCREMENT=[\d]+ `)
@@ -56,7 +57,7 @@ func (db *MySQLDatabase) Tables() (tables TableGraph, err error) {
 			"FROM `INFORMATION_SCHEMA`.`TABLES` "+
 			"WHERE `TABLE_SCHEMA` = %s "+
 			"AND `TABLE_TYPE` = 'BASE TABLE'",
-		quote(db.name),
+		MySQLQuote(db.name),
 	); err != nil {
 		return
 	}
@@ -101,7 +102,7 @@ func (db *MySQLDatabase) Views() (views ViewGraph, err error) {
 			"FROM `INFORMATION_SCHEMA`.`TABLES` "+
 			"WHERE `TABLE_SCHEMA` = %s "+
 			"AND `TABLE_TYPE` = 'VIEW'",
-		quote(db.name),
+		MySQLQuote(db.name),
 	); err != nil {
 		return
 	}
@@ -132,7 +133,7 @@ func (db *MySQLDatabase) Routines() (routines RoutineGraph, err error) {
 	var rows *gosql.Rows
 	rows, err = db.server.query(
 		"SELECT `name`, `type`, `character_set_client`, `collation_connection` FROM `mysql`.`proc` WHERE `db` = %s",
-		quote(db.name),
+		MySQLQuote(db.name),
 	)
 	if err != nil {
 		return
@@ -161,8 +162,8 @@ func (db *MySQLDatabase) setTableDependencies(table *Table) (err error) {
 			"FROM `INFORMATION_SCHEMA`.`KEY_COLUMN_USAGE` "+
 			"WHERE `REFERENCED_TABLE_SCHEMA` = %s "+
 			"AND `TABLE_NAME` = %s",
-		quote(db.name),
-		quote(table.Name),
+		MySQLQuote(db.name),
+		MySQLQuote(table.Name),
 	); err != nil {
 		return
 	}
@@ -189,8 +190,7 @@ func (db *MySQLDatabase) setTableGraphRows(tg TableGraph) (err error) {
 
 	tableRows := map[string]Rows{}
 	for _, table := range tg {
-		b := NewSelectBuilder(table)
-		b.Limit = db.server.args.Limit
+		conditions := map[string][]string{}
 		if len(table.Dependencies) > 0 {
 			for _, dep := range table.Dependencies {
 				refRows := tableRows[dep.TableName]
@@ -198,17 +198,17 @@ func (db *MySQLDatabase) setTableGraphRows(tg TableGraph) (err error) {
 				for _, rows := range refRows {
 					values = append(values, rows[dep.ColumnName])
 				}
-				b.Conditions[dep.ReferencedColumnName] = values
+				conditions[dep.ReferencedColumnName] = values
 			}
 		}
 
 		if !db.server.args.SkipLockTables {
-			if err = db.server.exec("LOCK TABLES %s READ LOCAL", backtick(table.Name)); err != nil {
+			if err = db.server.exec("LOCK TABLES %s READ LOCAL", MySQLBacktick(table.Name)); err != nil {
 				return
 			}
 		}
 		var rows Rows
-		rows, err = db.server.selectRows(b.SQL())
+		rows, err = db.server.selectRows(db.buildSelectRowsSQL(table.Name, conditions))
 		if err != nil {
 			return
 		}
@@ -231,8 +231,8 @@ func (db *MySQLDatabase) setTableTriggers(table *Table) (err error) {
 			"FROM `INFORMATION_SCHEMA`.`TRIGGERS` "+
 			"WHERE `TRIGGER_SCHEMA` LIKE %s "+
 			"AND `EVENT_OBJECT_TABLE` = %s",
-		quote(db.name+"%"),
-		quote(table.Name),
+		MySQLQuote(db.name+"%"),
+		MySQLQuote(table.Name),
 	); err != nil {
 		return
 	}
@@ -255,13 +255,13 @@ func (db *MySQLDatabase) setTableTriggers(table *Table) (err error) {
 // showCreateTable...
 func (db *MySQLDatabase) setTableCreateSQL(table *Table) (err error) {
 	var rows *gosql.Rows
-	if rows, err = db.server.query("SHOW CREATE TABLE %s", backtick(table.Name)); err != nil {
+	if rows, err = db.server.query("SHOW CREATE TABLE %s", MySQLBacktick(table.Name)); err != nil {
 		return
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		err = fmt.Errorf("SHOW CREATE TABLE %s returned 0 rows", backtick(table.Name))
+		err = fmt.Errorf("SHOW CREATE TABLE %s returned 0 rows", MySQLBacktick(table.Name))
 		return
 	}
 	var a string
@@ -275,13 +275,13 @@ func (db *MySQLDatabase) setTableCreateSQL(table *Table) (err error) {
 // setViewCreateSQL...
 func (db *MySQLDatabase) setViewCreateSQL(view *View) (err error) {
 	var rows *gosql.Rows
-	if rows, err = db.server.query("SHOW CREATE VIEW %s", backtick(view.Name)); err != nil {
+	if rows, err = db.server.query("SHOW CREATE VIEW %s", MySQLBacktick(view.Name)); err != nil {
 		return
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		err = fmt.Errorf("SHOW CREATE VIEW %s returned 0 rows", backtick(view.Name))
+		err = fmt.Errorf("SHOW CREATE VIEW %s returned 0 rows", MySQLBacktick(view.Name))
 		return
 	}
 	var a string
@@ -301,8 +301,8 @@ func (db *MySQLDatabase) setRoutineCreateSQL(r *Routine) (err error) {
 			"FROM `mysql`.`proc` "+
 			"WHERE `name` = %s "+
 			"AND `db` = %s",
-		quote(r.Name),
-		quote(db.name),
+		MySQLQuote(r.Name),
+		MySQLQuote(db.name),
 	)
 	if err != nil {
 		return
@@ -310,7 +310,7 @@ func (db *MySQLDatabase) setRoutineCreateSQL(r *Routine) (err error) {
 	defer rows.Close()
 
 	if !rows.Next() {
-		err = fmt.Errorf("SHOW CREATE ROUTINE %s returned 0 rows", backtick(r.Name))
+		err = fmt.Errorf("SHOW CREATE ROUTINE %s returned 0 rows", MySQLBacktick(r.Name))
 		return
 	}
 	if err = rows.Scan(&r.Type, &r.CreateSQL, &r.SecurityType, &r.Definer, &r.ParamList, &r.Returns, &r.IsDeterministic); err != nil {
@@ -322,13 +322,13 @@ func (db *MySQLDatabase) setRoutineCreateSQL(r *Routine) (err error) {
 // setTriggerCreateSQL...
 func (db *MySQLDatabase) setTriggerCreateSQL(t *Trigger) (err error) {
 	var rows *gosql.Rows
-	if rows, err = db.server.query("SHOW CREATE TRIGGER %s", backtick(t.Name)); err != nil {
+	if rows, err = db.server.query("SHOW CREATE TRIGGER %s", MySQLBacktick(t.Name)); err != nil {
 		return
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		err = fmt.Errorf("SHOW CREATE TRIGGER %s returned 0 rows", backtick(t.Name))
+		err = fmt.Errorf("SHOW CREATE TRIGGER %s returned 0 rows", MySQLBacktick(t.Name))
 		return
 	}
 	var a string
@@ -389,4 +389,71 @@ func (db *MySQLDatabase) resolveTableGraph(graph TableGraph) (TableGraph, error)
 	}
 
 	return resolved, nil
+}
+
+// buildSelectRowsSQL...
+func (db *MySQLDatabase) buildSelectRowsSQL(tableName string, conditions map[string][]string) string {
+	where := db.buildWhereIn(conditions)
+	var limit string
+	if db.server.args.Limit != 0 {
+		limit = fmt.Sprintf("LIMIT %d", db.server.args.Limit)
+	}
+	return fmt.Sprintf(
+		"SELECT * FROM %s %s %s",
+		MySQLBacktick(tableName),
+		where,
+		limit,
+	)
+}
+
+// buildWhereIn...
+func (db *MySQLDatabase) buildWhereIn(conditions map[string][]string) string {
+	values := []string{}
+	for col, vals := range conditions {
+		if len(vals) > 0 {
+			cond := fmt.Sprintf("%s IN(%s)", MySQLBacktick(col), MySQLJoinValues(vals))
+			values = append(values, cond)
+		}
+	}
+	if len(values) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("WHERE %s", strings.Join(values, " AND "))
+}
+
+// MySQLEscape...
+func MySQLEscape(val string) string {
+ 	val = strings.Replace(val, `\`, `\\`, -1)
+ 	val = strings.Replace(val, `'`, `\'`, -1)
+ 	val = strings.Replace(val, "\b", `\b`, -1)
+ 	val = strings.Replace(val, "\n", `\n`, -1)
+ 	val = strings.Replace(val, "\r", `\r`, -1)
+ 	val = strings.Replace(val, "\t", `\t`, -1)
+ 	return val
+}
+
+// MySQLBacktick...
+func MySQLBacktick(col string) string {
+	return fmt.Sprintf("`%s`", col)
+}
+
+// MySQLQuote...
+func MySQLQuote(val string) string {
+	return fmt.Sprintf("'%s'", MySQLEscape(val))
+}
+
+// MySQLJoinValues...
+func MySQLJoinValues(vals []string) string {
+	for i, val := range vals {
+		vals[i] = MySQLQuote(val)
+	}
+	return strings.Join(vals, ", ")
+}
+
+// MySQLJoinColumns...
+func MySQLJoinColumns(cols []string) string {
+	for i, col := range cols {
+		cols[i] = MySQLBacktick(col)
+	}
+	return strings.Join(cols, ", ")
 }
