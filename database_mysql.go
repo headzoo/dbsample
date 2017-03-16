@@ -210,15 +210,19 @@ func (db *MySQLDatabase) setTableGraphRows(tg TableGraph) (err error) {
 		}
 	}()
 
-	tableRows := map[string]Rows{}
+	tableResults := map[string]Rows{}
 	for _, table := range tg {
 		conditions := map[string][]string{}
 		if len(table.Dependencies) > 0 {
 			for _, dep := range table.Dependencies {
-				refRows := tableRows[dep.TableName]
+				refResults := tableResults[dep.TableName]
 				values := []string{}
-				for _, rows := range refRows {
-					values = append(values, rows[dep.ColumnName])
+				for _, row := range refResults {
+					for _, field := range row {
+						if field.Column == dep.ColumnName {
+							values = append(values, field.Value)
+						}
+					}
 				}
 				conditions[dep.ReferencedColumnName] = values
 			}
@@ -229,8 +233,8 @@ func (db *MySQLDatabase) setTableGraphRows(tg TableGraph) (err error) {
 				return
 			}
 		}
-		var rows Rows
-		rows, err = db.server.selectRows(db.buildSelectRowsSQL(table.Name, conditions))
+		var results Rows
+		results, err = db.server.selectRows(db.buildSelectRowsSQL(table.Name, conditions))
 		if err != nil {
 			return
 		}
@@ -239,8 +243,8 @@ func (db *MySQLDatabase) setTableGraphRows(tg TableGraph) (err error) {
 				return
 			}
 		}
-		table.Rows = rows
-		tableRows[table.Name] = rows
+		table.Rows = results
+		tableResults[table.Name] = results
 	}
 	return
 }
@@ -251,9 +255,9 @@ func (db *MySQLDatabase) setTableTriggers(table *Table) (err error) {
 	if rows, err = db.server.query(
 		"SELECT `TRIGGER_NAME` "+
 			"FROM `INFORMATION_SCHEMA`.`TRIGGERS` "+
-			"WHERE `TRIGGER_SCHEMA` LIKE %s "+
+			"WHERE `TRIGGER_SCHEMA` = %s "+
 			"AND `EVENT_OBJECT_TABLE` = %s",
-		MySQLQuote(db.name+"%"),
+		MySQLQuote(db.name),
 		MySQLQuote(table.Name),
 	); err != nil {
 		return

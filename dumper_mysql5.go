@@ -135,8 +135,8 @@ func (g *MySQL5Dumper) tableInserts(table *Table) string {
 	}
 
 	cols := []string{}
-	for col, _ := range table.Rows[0] {
-		cols = append(cols, col)
+	for _, row := range table.Rows[0] {
+		cols = append(cols, row.Column)
 	}
 	columns := MySQLJoinColumns(cols)
 
@@ -145,7 +145,7 @@ func (g *MySQL5Dumper) tableInserts(table *Table) string {
 		for _, row := range table.Rows {
 			vals := []string{}
 			for _, v := range row {
-				vals = append(vals, v)
+				vals = append(vals, v.Value)
 			}
 			inserts = append(inserts, fmt.Sprintf(
 				"INSERT INTO `%s` (%s) VALUES(%s);",
@@ -160,7 +160,7 @@ func (g *MySQL5Dumper) tableInserts(table *Table) string {
 		for _, row := range table.Rows {
 			vals := []string{}
 			for _, v := range row {
-				vals = append(vals, v)
+				vals = append(vals, v.Value)
 			}
 			values = append(values, fmt.Sprintf("(%s)", MySQLJoinValues(vals)))
 		}

@@ -87,26 +87,57 @@ func (s *Server) VersionNumber() string {
 }
 
 // selectRows...
-func (s *Server) selectRows(sql string) (Rows, error) {
-	res := make(Rows, 0)
-	rows, err := s.query(sql)
-	if err != nil {
-		return res, err
+func (s *Server) selectRows(sql string) (results Rows, err error) {
+	var rows *gosql.Rows
+	if rows, err = s.query(sql); err != nil {
+		return
 	}
 	defer rows.Close()
-
-	cols, err := rows.Columns()
-	if err != nil {
-		return res, err
+	
+	var columns []string
+	if columns, err = rows.Columns(); err != nil {
+		return
 	}
-	clen := len(cols)
+	colNum := len(columns)
 
+	for rows.Next() {
+		rawValues := make([]interface{}, colNum)
+		rawBytes := make([][]byte, colNum)
+		for i, _ := range rawValues {
+			rawValues[i] = &rawBytes[i]
+		}
+		rows.Scan(rawValues...)
+
+		strValues := make([]string, colNum)
+		for i, v := range rawBytes {
+			if v == nil {
+				strValues[i] = ""
+			} else {
+				strValues[i] = string(v)
+			}
+		}
+		
+		fields := make(Row, colNum)
+		for i, c := range columns {
+			fields[i] = Field{
+				Column: c,
+				Value: strValues[i],
+			}
+		}
+		results = append(results, fields)
+	}
+	
+	return
+	
+	/*
+	clen := len(cols)
 	raw := make([][]byte, clen)
 	result := make([]string, clen)
 	dest := make([]interface{}, clen)
 	for i, _ := range raw {
 		dest[i] = &raw[i]
 	}
+	
 
 	for rows.Next() {
 		err = rows.Scan(dest...)
@@ -126,8 +157,8 @@ func (s *Server) selectRows(sql string) (Rows, error) {
 		}
 		res = append(res, row)
 	}
-
-	return res, nil
+*/
+	return results, nil
 }
 
 // query...

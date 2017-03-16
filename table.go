@@ -1,7 +1,7 @@
 package dbsampler
 
 type (
-	Row          map[string]string
+	Row          []Field
 	Rows         []Row
 	TableGraph   []*Table
 	TriggerGraph []*Trigger
@@ -9,6 +9,12 @@ type (
 	ViewGraph    []*View
 	ColumnGraph  []*Column
 )
+
+// Field...
+type Field struct {
+	Column string
+	Value string
+}
 
 // Trigger...
 type Trigger struct {
@@ -65,7 +71,7 @@ type Table struct {
 	Collation    string
 	Dependencies []*Dependency
 	Triggers     TriggerGraph
-	Rows         Rows
+	Rows Rows
 }
 
 // Column...

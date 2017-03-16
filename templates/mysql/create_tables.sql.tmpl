@@ -8,7 +8,7 @@
 /*!40101 SET character_set_client = {{ .CharSet }} */;
 {{ .CreateSQL }};
 /*!40101 SET character_set_client = @saved_cs_client */;
-
+{{ if .Rows }}
 --
 -- Dumping data for table `{{ .Name }}`
 --
@@ -20,4 +20,5 @@ LOCK TABLES `{{ .Name }}` WRITE;
 UNLOCK TABLES;
 
 {{ if $.ShouldDumpTriggers }}{{ template "templates/mysql/create_triggers.sql.tmpl" . }}{{ end }}
+{{ end }}
 {{ end }}
