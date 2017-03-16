@@ -18,8 +18,8 @@ Flags:
   -h, --host="127.0.0.1"      The database host.
   -P, --port="3306"           The database port.
       --protocol="tcp"        The protocol to use for the connection (tcp, socket, pip, memory).
-  -u, --user=""               The database user.
-  -p, --pass=""               The database password.
+  -u, --user=USER             The database user.
+  -p, --pass=PASS             The database password.
       --prompt                Prompt for the database password.
       --routines              Dump procedures and functions.
       --triggers              Dump triggers.
@@ -28,6 +28,8 @@ Flags:
       --skip-lock-tables      Disable locking tables on read.
       --skip-add-drop-table   Disable adding DROP TABLE statements.
       --extended-insert       Use multiple-row INSERT syntax that include several VALUES lists.
+      --rename-database=DUMP-NAME  
+                              Use this database name in the dump.
 
 Args:
   <database>  Name of the database to dump.

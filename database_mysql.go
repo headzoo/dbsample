@@ -41,6 +41,11 @@ func (db *MySQLDatabase) Name() string {
 	return db.name
 }
 
+// SetName...
+func (db *MySQLDatabase) SetName(name string) {
+	db.name = name
+}
+
 // CharSet...
 func (db *MySQLDatabase) CharSet() string {
 	return db.charSet
@@ -69,6 +74,11 @@ func (db *MySQLDatabase) CreateSQL() (string, error) {
 		}
 	}
 	return db.createSQL, nil
+}
+
+// SetCreateSQL...
+func (db *MySQLDatabase) SetCreateSQL(sql string) {
+	db.createSQL = sql
 }
 
 // Tables...

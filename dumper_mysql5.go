@@ -10,9 +10,12 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"regexp"
 )
 
 const MySQL5DumperTemplatesPath = "./templates/mysql"
+
+var dbname = regexp.MustCompile("CREATE DATABASE `[^`]+`")
 
 // MySQL5DumperTemplateValues...
 type MySQL5DumperTemplateValues struct {
@@ -26,6 +29,7 @@ type MySQL5DumperTemplateValues struct {
 	DumpDate           string
 	CharSet            string
 	Collation          string
+	OriginalDatabaseName string
 	Database           Database
 	Args               *DumpArgs
 	Connection         *ConnectionArgs
@@ -64,7 +68,21 @@ func (g *MySQL5Dumper) Dump(w io.Writer, db Database) error {
 	if err != nil {
 		return err
 	}
-
+	
+	origDatabaseName := db.Name()
+	if g.args.RenameDatabase != "" {
+		sql, err := db.CreateSQL()
+		if err != nil {
+			return err
+		}
+		sql = dbname.ReplaceAllString(
+			sql,
+			fmt.Sprintf("CREATE DATABASE `%s`", g.args.RenameDatabase),
+		)
+		db.SetCreateSQL(sql)
+		db.SetName(g.args.RenameDatabase)
+	}
+	
 	if err := g.parseTemplates(); err != nil {
 		return err
 	}
@@ -77,6 +95,7 @@ func (g *MySQL5Dumper) Dump(w io.Writer, db Database) error {
 		AppName:            Name,
 		AppVersion:         Version,
 		Database:           db,
+		OriginalDatabaseName: origDatabaseName,
 		Args:               g.args,
 		CharSet:            db.CharSet(),
 		Collation:          db.Collation(),

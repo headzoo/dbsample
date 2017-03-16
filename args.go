@@ -38,6 +38,7 @@ type DumpArgs struct {
 	Limit              int
 	Routines           bool
 	Triggers           bool
+	RenameDatabase     string
 	SkipCreateDatabase bool
 	SkipLockTables     bool
 	SkipAddDropTable   bool
@@ -55,8 +56,8 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 	kingpin.Flag("host", "The database host.").Default("127.0.0.1").Short('h').StringVar(&conn.Host)
 	kingpin.Flag("port", "The database port.").Default("3306").Short('P').StringVar(&conn.Port)
 	kingpin.Flag("protocol", "The protocol to use for the connection (tcp, socket, pip, memory).").Default("tcp").StringVar(&conn.Protocol)
-	kingpin.Flag("user", "The database user.").Default("").Short('u').StringVar(&conn.User)
-	kingpin.Flag("pass", "The database password.").Default("").Short('p').StringVar(&conn.Pass)
+	kingpin.Flag("user", "The database user.").Short('u').StringVar(&conn.User)
+	kingpin.Flag("pass", "The database password.").Short('p').StringVar(&conn.Pass)
 	prompt := kingpin.Flag("prompt", "Prompt for the database password.").Bool()
 
 	kingpin.Flag("routines", "Dump procedures and functions.").BoolVar(&args.Routines)
@@ -66,6 +67,7 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 	kingpin.Flag("skip-lock-tables", "Disable locking tables on read.").BoolVar(&args.SkipLockTables)
 	kingpin.Flag("skip-add-drop-table", "Disable adding DROP TABLE statements.").BoolVar(&args.SkipAddDropTable)
 	kingpin.Flag("extended-insert", "Use multiple-row INSERT syntax that include several VALUES lists.").BoolVar(&args.ExtendedInsert)
+	kingpin.Flag("rename-database", "Use this database name in the dump.").PlaceHolder("DUMP-NAME").StringVar(&args.RenameDatabase)
 	kingpin.Arg("database", "Name of the database to dump.").Required().StringVar(&conn.Name)
 	kingpin.Parse()
 
