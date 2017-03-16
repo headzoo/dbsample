@@ -107,13 +107,18 @@ func (db *MySQLDatabase) Tables() (tables TableGraph, err error) {
 		if err = db.setTableCreateSQL(table); err != nil {
 			return
 		}
+		var cols ColumnMap
+		if cols, err = db.tableColumns(table.Name); err != nil {
+			return
+		}
+		table.Columns = cols
 		table.CharSet = db.charSet
 		tables = append(tables, table)
 	}
-	if err = db.setTableGraphRows(tables); err != nil {
+	if tables, err = db.resolveTableGraph(tables); err != nil {
 		return
 	}
-	if tables, err = db.resolveTableGraph(tables); err != nil {
+	if err = db.setTableGraphRows(tables); err != nil {
 		return
 	}
 	if db.server.args.Triggers {
@@ -237,7 +242,6 @@ func (db *MySQLDatabase) setTableGraphRows(tg TableGraph) (err error) {
 				conditions[dep.ReferencedColumnName] = values
 			}
 		}
-
 		if !db.server.args.SkipLockTables {
 			if err = db.server.exec("LOCK TABLES %s READ LOCAL", MySQLBacktick(table.Name)); err != nil {
 				return
@@ -333,7 +337,7 @@ func (db *MySQLDatabase) setViewCreateSQL(view *View) (err error) {
 	}
 	view.CreateSQL = fmt.Sprintf("VIEW %s AS %s", MySQLBacktick(view.Name), view.CreateSQL)
 	view.Definer = MySQLBacktickUser(view.Definer)
-	var cols ColumnGraph
+	var cols ColumnMap
 	if cols, err = db.tableColumns(view.Name); err != nil {
 		return
 	}
@@ -415,10 +419,10 @@ func (db *MySQLDatabase) setTriggerCreateSQL(t *Trigger) (err error) {
 }
 
 // tableColumns...
-func (db *MySQLDatabase) tableColumns(tableName string) (cols ColumnGraph, err error) {
+func (db *MySQLDatabase) tableColumns(tableName string) (cols ColumnMap, err error) {
 	var rows *gosql.Rows
 	if rows, err = db.server.query(
-		"SELECT `COLUMN_NAME`, `ORDINAL_POSITION`, `COLUMN_TYPE` "+
+		"SELECT `COLUMN_NAME`, `ORDINAL_POSITION`, `COLUMN_TYPE`, `DATA_TYPE` "+
 			"FROM `INFORMATION_SCHEMA`.`COLUMNS` "+
 			"WHERE `TABLE_SCHEMA` = %s "+
 			"AND `TABLE_NAME` = %s",
@@ -429,13 +433,13 @@ func (db *MySQLDatabase) tableColumns(tableName string) (cols ColumnGraph, err e
 	}
 	defer rows.Close()
 
-	cols = ColumnGraph{}
+	cols = ColumnMap{}
 	for rows.Next() {
 		col := &Column{}
-		if err = rows.Scan(&col.Name, &col.OrdinalPosition, &col.Type); err != nil {
+		if err = rows.Scan(&col.Name, &col.OrdinalPosition, &col.Type, &col.DataType); err != nil {
 			return
 		}
-		cols = append(cols, col)
+		cols[col.Name] = col
 	}
 	return
 }

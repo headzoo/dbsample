@@ -128,37 +128,6 @@ func (s *Server) selectRows(sql string) (results Rows, err error) {
 	}
 	
 	return
-	
-	/*
-	clen := len(cols)
-	raw := make([][]byte, clen)
-	result := make([]string, clen)
-	dest := make([]interface{}, clen)
-	for i, _ := range raw {
-		dest[i] = &raw[i]
-	}
-	
-
-	for rows.Next() {
-		err = rows.Scan(dest...)
-		if err != nil {
-			return res, err
-		}
-		for i, raw := range raw {
-			if raw == nil {
-				result[i] = "\\N"
-			} else {
-				result[i] = string(raw)
-			}
-		}
-		row := make(Row, clen)
-		for i, c := range cols {
-			row[c] = result[i]
-		}
-		res = append(res, row)
-	}
-*/
-	return results, nil
 }
 
 // query...

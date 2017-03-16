@@ -7,7 +7,7 @@ type (
 	TriggerGraph []*Trigger
 	RoutineGraph []*Routine
 	ViewGraph    []*View
-	ColumnGraph  []*Column
+	ColumnMap    map[string]*Column
 )
 
 // Field...
@@ -48,7 +48,7 @@ type Routine struct {
 // View...
 type View struct {
 	Name         string
-	Columns      ColumnGraph
+	Columns      ColumnMap
 	CreateSQL    string
 	CharSet      string
 	Collation    string
@@ -69,6 +69,7 @@ type Table struct {
 	CreateSQL    string
 	CharSet      string
 	Collation    string
+	Columns      ColumnMap
 	Dependencies []*Dependency
 	Triggers     TriggerGraph
 	Rows Rows
@@ -79,4 +80,5 @@ type Column struct {
 	Name            string
 	OrdinalPosition int
 	Type            string
+	DataType        string
 }

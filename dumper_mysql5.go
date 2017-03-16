@@ -153,12 +153,14 @@ func (g *MySQL5Dumper) tableInserts(table *Table) string {
 		return ""
 	}
 
+	types := []string{}
 	cols := []string{}
 	for _, row := range table.Rows[0] {
 		cols = append(cols, row.Column)
+		types = append(types, table.Columns[row.Column].DataType)
 	}
 	columns := MySQLJoinColumns(cols)
-
+	
 	if g.args.ExtendedInsert {
 		inserts := []string{}
 		for _, row := range table.Rows {
@@ -170,7 +172,7 @@ func (g *MySQL5Dumper) tableInserts(table *Table) string {
 				"INSERT INTO `%s` (%s) VALUES(%s);",
 				table.Name,
 				columns,
-				MySQLJoinValues(vals),
+				g.joinValues(vals, types),
 			))
 		}
 		return strings.Join(inserts, "\n")
@@ -181,8 +183,23 @@ func (g *MySQL5Dumper) tableInserts(table *Table) string {
 			for _, v := range row {
 				vals = append(vals, v.Value)
 			}
-			values = append(values, fmt.Sprintf("(%s)", MySQLJoinValues(vals)))
+			values = append(values, fmt.Sprintf("(%s)", g.joinValues(vals, types)))
 		}
 		return fmt.Sprintf("INSERT INTO `%s` (%s) VALUES %s;\n", table.Name, columns, strings.Join(values, ","))
 	}
+}
+
+// joinValues...
+func (g *MySQL5Dumper) joinValues(vals []string, types []string) string {
+	for i, val := range vals {
+		if strings.Contains(types[i], "int") {
+			if val == "" {
+				val = "0"
+			}
+			vals[i] = val
+		} else {
+			vals[i] = MySQLQuote(val)
+		}
+	}
+	return strings.Join(vals, ", ")
 }
