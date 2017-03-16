@@ -66,6 +66,9 @@ func (db *MySQLDatabase) CreateSQL() (string, error) {
 		if !rows.Next() {
 			return "", fmt.Errorf("SHOW CREATE DATABASE %s returned 0 rows", MySQLBacktick(db.name))
 		}
+		if err = rows.Err(); err != nil {
+			return "", err
+		}
 		var a string
 		if err = rows.Scan(&a, &db.createSQL); err != nil {
 			return "", err
@@ -113,6 +116,9 @@ func (db *MySQLDatabase) Tables() (tables TableGraph, err error) {
 		table.CharSet = db.charSet
 		tables = append(tables, table)
 	}
+	if err = rows.Err(); err != nil {
+		return
+	}
 	if tables, err = resolveTableGraph(tables); err != nil {
 		return
 	}
@@ -156,6 +162,9 @@ func (db *MySQLDatabase) Views() (views ViewGraph, err error) {
 		view.Collation = db.collation
 		views = append(views, view)
 	}
+	if err = rows.Err(); err != nil {
+		return
+	}
 	return
 }
 
@@ -186,6 +195,9 @@ func (db *MySQLDatabase) Routines() (routines RoutineGraph, err error) {
 		}
 		routines = append(routines, routine)
 	}
+	if err = rows.Err(); err != nil {
+		return
+	}
 	return
 }
 
@@ -212,6 +224,9 @@ func (db *MySQLDatabase) setTableDependencies(table *Table) (err error) {
 		}
 		table.Dependencies = append(table.Dependencies, dep)
 		table.AppendDebugMsg("Dependency: %s.%s", dep.TableName, dep.ColumnName)
+	}
+	if err = rows.Err(); err != nil {
+		return
 	}
 	return
 }
@@ -266,6 +281,9 @@ func (db *MySQLDatabase) setTableTriggers(table *Table) (err error) {
 		}
 		table.Triggers = append(table.Triggers, trigger)
 	}
+	if err = rows.Err(); err != nil {
+		return
+	}
 	return
 }
 
@@ -279,6 +297,9 @@ func (db *MySQLDatabase) setTableCreateSQL(table *Table) (err error) {
 
 	if !rows.Next() {
 		err = fmt.Errorf("SHOW CREATE TABLE %s returned 0 rows", MySQLBacktick(table.Name))
+		return
+	}
+	if err = rows.Err(); err != nil {
 		return
 	}
 	var a string
@@ -307,6 +328,9 @@ func (db *MySQLDatabase) setViewCreateSQL(view *View) (err error) {
 
 	if !rows.Next() {
 		err = fmt.Errorf("SHOW CREATE VIEW %s returned 0 rows", MySQLBacktick(view.Name))
+		return
+	}
+	if err = rows.Err(); err != nil {
 		return
 	}
 	if err = rows.Scan(&view.CreateSQL, &view.Definer, &view.SecurityType, &view.CharSet, &view.Collation); err != nil {
@@ -343,6 +367,9 @@ func (db *MySQLDatabase) setRoutineCreateSQL(r *Routine) (err error) {
 		err = fmt.Errorf("SHOW CREATE ROUTINE %s returned 0 rows", MySQLBacktick(r.Name))
 		return
 	}
+	if err = rows.Err(); err != nil {
+		return
+	}
 	if err = rows.Scan(&r.Type, &r.CreateSQL, &r.SecurityType, &r.Definer, &r.ParamList, &r.Returns, &r.IsDeterministic, &r.SQLMode); err != nil {
 		return
 	}
@@ -377,6 +404,9 @@ func (db *MySQLDatabase) setTriggerCreateSQL(t *Trigger) (err error) {
 
 	if !rows.Next() {
 		err = fmt.Errorf("SHOW CREATE TRIGGER %s returned 0 rows", MySQLBacktick(t.Name))
+		return
+	}
+	if err = rows.Err(); err != nil {
 		return
 	}
 	if err = rows.Scan(
@@ -417,6 +447,9 @@ func (db *MySQLDatabase) tableColumns(tableName string) (cols ColumnMap, err err
 			return
 		}
 		cols[col.Name] = col
+	}
+	if err = rows.Err(); err != nil {
+		return
 	}
 	return
 }

@@ -69,7 +69,12 @@ func (s *Server) Variable(v string) (string, error) {
 		return row, err
 	}
 	defer rows.Close()
-	rows.Next()
+	if !rows.Next() {
+		return "", nil
+	}
+	if err = rows.Err(); err != nil {
+		return "", err
+	}
 	if err := rows.Scan(&row); err != nil {
 		return row, err
 	}
@@ -126,7 +131,7 @@ func (s *Server) querySelect(sql string) (results Rows, err error) {
 		}
 		results = append(results, fields)
 	}
-	
+	err = rows.Err()
 	return
 }
 
@@ -162,6 +167,9 @@ func (s *Server) selectDatabaseCharSet(name string) (charSet string, collation s
 	defer rows.Close()
 	if !rows.Next() {
 		err = fmt.Errorf("SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME returned 0 rows")
+		return
+	}
+	if err = rows.Err(); err != nil {
 		return
 	}
 	if err = rows.Scan(&charSet, &collation); err != nil {
