@@ -11,8 +11,10 @@
 /*!50003 SET character_set_results = {{ .CharSet }} */ ;
 /*!50003 SET collation_connection  = {{ .Collation }} */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'NO_ENGINE_SUBSTITUTION' */ ;
+/*!50003 SET sql_mode              = '{{ .SQLMode }}' */ ;
 DELIMITER ;;
+CREATE DEFINER={{ .Definer }} {{ .Type }} `{{ .Name }}`({{ .ParamList }}){{ if eq .Type "FUNCTION" }} RETURNS {{ .Returns }}{{ end }}{{ if eq .IsDeterministic "YES" }}
+    DETERMINISTIC{{ end }}
 {{ .CreateSQL }} ;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;

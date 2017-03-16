@@ -297,7 +297,15 @@ func (db *MySQLDatabase) setTableCreateSQL(table *Table) (err error) {
 // setViewCreateSQL...
 func (db *MySQLDatabase) setViewCreateSQL(view *View) (err error) {
 	var rows *gosql.Rows
-	if rows, err = db.server.query("SHOW CREATE VIEW %s", MySQLBacktick(view.Name)); err != nil {
+	if rows, err = db.server.query(
+		"SELECT `VIEW_DEFINITION`, `DEFINER`, `SECURITY_TYPE`, `CHARACTER_SET_CLIENT`, `COLLATION_CONNECTION`"+
+		"FROM `INFORMATION_SCHEMA`.`VIEWS` "+
+		"WHERE `TABLE_SCHEMA` = %s "+
+		"AND `TABLE_NAME` = %s "+
+		"LIMIT 1",
+		MySQLQuote(db.Name()),
+		MySQLQuote(view.Name),
+	); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -306,12 +314,16 @@ func (db *MySQLDatabase) setViewCreateSQL(view *View) (err error) {
 		err = fmt.Errorf("SHOW CREATE VIEW %s returned 0 rows", MySQLBacktick(view.Name))
 		return
 	}
-	var a string
-	var b string
-	var c string
-	if err = rows.Scan(&a, &view.CreateSQL, &b, &c); err != nil {
+	if err = rows.Scan(&view.CreateSQL, &view.Definer, &view.SecurityType, &view.CharSet, &view.Collation); err != nil {
 		return
 	}
+	view.CreateSQL = fmt.Sprintf("VIEW %s AS %s", MySQLBacktick(view.Name), view.CreateSQL)
+	view.Definer = MySQLBacktickUser(view.Definer)
+	var cols ColumnGraph
+	if cols, err = db.tableColumns(view.Name); err != nil {
+		return
+	}
+	view.Columns = cols
 	return
 }
 
@@ -319,10 +331,11 @@ func (db *MySQLDatabase) setViewCreateSQL(view *View) (err error) {
 func (db *MySQLDatabase) setRoutineCreateSQL(r *Routine) (err error) {
 	var rows *gosql.Rows
 	rows, err = db.server.query(
-		"SELECT `type`, `body_utf8`, `security_type`, `definer`, `param_list`, `returns`, `is_deterministic` "+
+		"SELECT `type`, `body_utf8`, `security_type`, `definer`, `param_list`, `returns`, `is_deterministic`, `sql_mode` "+
 			"FROM `mysql`.`proc` "+
 			"WHERE `name` = %s "+
-			"AND `db` = %s",
+			"AND `db` = %s "+
+			"LIMIT 1",
 		MySQLQuote(r.Name),
 		MySQLQuote(db.name),
 	)
@@ -335,9 +348,10 @@ func (db *MySQLDatabase) setRoutineCreateSQL(r *Routine) (err error) {
 		err = fmt.Errorf("SHOW CREATE ROUTINE %s returned 0 rows", MySQLBacktick(r.Name))
 		return
 	}
-	if err = rows.Scan(&r.Type, &r.CreateSQL, &r.SecurityType, &r.Definer, &r.ParamList, &r.Returns, &r.IsDeterministic); err != nil {
+	if err = rows.Scan(&r.Type, &r.CreateSQL, &r.SecurityType, &r.Definer, &r.ParamList, &r.Returns, &r.IsDeterministic, &r.SQLMode); err != nil {
 		return
 	}
+	r.Definer = MySQLBacktickUser(r.Definer)
 	return
 }
 
@@ -357,6 +371,32 @@ func (db *MySQLDatabase) setTriggerCreateSQL(t *Trigger) (err error) {
 	var b string
 	if err = rows.Scan(&a, &t.SQLMode, &t.CreateSQL, &t.CharSet, &t.Collation, &b); err != nil {
 		return
+	}
+	return
+}
+
+// tableColumns...
+func (db *MySQLDatabase) tableColumns(tableName string) (cols ColumnGraph, err error) {
+	var rows *gosql.Rows
+	if rows, err = db.server.query(
+		"SELECT `COLUMN_NAME`, `ORDINAL_POSITION`, `COLUMN_TYPE` "+
+		"FROM `INFORMATION_SCHEMA`.`COLUMNS` "+
+		"WHERE `TABLE_SCHEMA` = %s "+
+		"AND `TABLE_NAME` = %s",
+		MySQLQuote(db.Name()),
+		MySQLQuote(tableName),
+	); err != nil {
+		return
+	}
+	defer rows.Close()
+	
+	cols = ColumnGraph{}
+	for rows.Next() {
+		col := &Column{}
+		if err = rows.Scan(&col.Name, &col.OrdinalPosition, &col.Type); err != nil {
+			return
+		}
+		cols = append(cols, col)
 	}
 	return
 }
@@ -475,6 +515,12 @@ func MySQLEscape(val string) string {
 // MySQLBacktick...
 func MySQLBacktick(col string) string {
 	return fmt.Sprintf("`%s`", col)
+}
+
+// MySQLBacktickUser...
+func MySQLBacktickUser(user string) string {
+	parts := strings.SplitN(user, "@", 2)
+	return fmt.Sprintf("`%s`@`%s`", parts[0], parts[1])
 }
 
 // MySQLQuote...

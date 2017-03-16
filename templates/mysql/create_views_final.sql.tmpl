@@ -11,7 +11,7 @@
 /*!50001 SET character_set_results     = {{ .CharSet }} */;
 /*!50001 SET collation_connection      = {{ .Collation }} */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`flix`@`%` SQL SECURITY DEFINER */
+/*!50013 DEFINER={{ .Definer }} SQL SECURITY {{ .SecurityType }} */
 /*!50001 {{ .CreateSQL }} */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;

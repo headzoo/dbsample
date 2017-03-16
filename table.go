@@ -7,6 +7,7 @@ type (
 	TriggerGraph []*Trigger
 	RoutineGraph []*Routine
 	ViewGraph    []*View
+	ColumnGraph  []*Column
 )
 
 // Trigger...
@@ -28,6 +29,7 @@ type Routine struct {
 	ParamList       string
 	Returns         string
 	IsDeterministic string
+	SQLMode         string
 	CharSet         string
 	Collation       string
 }
@@ -35,9 +37,12 @@ type Routine struct {
 // View...
 type View struct {
 	Name      string
+	Columns   ColumnGraph
 	CreateSQL string
 	CharSet   string
 	Collation string
+	SecurityType    string
+	Definer         string
 }
 
 // Dependency...
@@ -56,4 +61,11 @@ type Table struct {
 	Dependencies []*Dependency
 	Triggers     TriggerGraph
 	Rows         Rows
+}
+
+// Column...
+type Column struct {
+	Name string
+	OrdinalPosition int
+	Type string
 }
