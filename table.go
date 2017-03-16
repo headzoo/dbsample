@@ -16,6 +16,14 @@ type Field struct {
 	Value string
 }
 
+// Column...
+type Column struct {
+	Name            string
+	OrdinalPosition int
+	Type            string
+	DataType        string
+}
+
 // Trigger...
 type Trigger struct {
 	Name              string
@@ -56,13 +64,6 @@ type View struct {
 	Definer      string
 }
 
-// Dependency...
-type Dependency struct {
-	TableName            string
-	ColumnName           string
-	ReferencedColumnName string
-}
-
 // Table stores the details of a single database table.
 type Table struct {
 	Name         string
@@ -72,13 +73,12 @@ type Table struct {
 	Columns      ColumnMap
 	Dependencies []*Dependency
 	Triggers     TriggerGraph
-	Rows Rows
+	Rows         Rows
 }
 
-// Column...
-type Column struct {
-	Name            string
-	OrdinalPosition int
-	Type            string
-	DataType        string
+// Dependency...
+type Dependency struct {
+	TableName            string
+	ColumnName           string
+	ReferencedColumnName string
 }
