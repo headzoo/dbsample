@@ -4,14 +4,14 @@ import "testing"
 
 func TestMySQLEscape(t *testing.T) {
 	tests := map[string]string{
-		`Hello world`: `Hello world`,
-		"Hello\x00world": `Hello\0world`,
-		"Hello\033world": `Hello\Zworld`,
-		"Hello\bworld": `Hello\bworld`,
-		"Hello\rworld": `Hello\rworld`,
-		"Hello\nworld": `Hello\nworld`,
-		"Hello\tworld": `Hello\tworld`,
-		`Hello\world`: `Hello\\world`,
+		`Hello world`:        `Hello world`,
+		"Hello\x00world":     `Hello\0world`,
+		"Hello\033world":     `Hello\Zworld`,
+		"Hello\bworld":       `Hello\bworld`,
+		"Hello\rworld":       `Hello\rworld`,
+		"Hello\nworld":       `Hello\nworld`,
+		"Hello\tworld":       `Hello\tworld`,
+		`Hello\world`:        `Hello\\world`,
 		"\x00\033\b\r\n\t\\": `\0\Z\b\r\n\t\\`,
 	}
 	for s, ex := range tests {
@@ -24,7 +24,7 @@ func TestMySQLEscape(t *testing.T) {
 
 func TestMySQLQuote(t *testing.T) {
 	tests := map[string]string{
-		`Hello world`: `'Hello world'`,
+		`Hello world`:  `'Hello world'`,
 		"Hello\rworld": `'Hello\rworld'`,
 		"Hello\nworld": `'Hello\nworld'`,
 	}
@@ -50,7 +50,7 @@ func TestMySQLBacktick(t *testing.T) {
 
 func TestMySQLJoinValues(t *testing.T) {
 	tests := map[string][]string{
-		`'Hello world'`: []string{`Hello world`},
+		`'Hello world'`:            []string{`Hello world`},
 		`'Hello world', 'Goodbye'`: []string{`Hello world`, `Goodbye`},
 	}
 	for ex, s := range tests {
@@ -63,7 +63,7 @@ func TestMySQLJoinValues(t *testing.T) {
 
 func TestMySQLJoinColumns(t *testing.T) {
 	tests := map[string][]string{
-		"`Hello world`": []string{`Hello world`},
+		"`Hello world`":            []string{`Hello world`},
 		"`Hello world`, `Goodbye`": []string{`Hello world`, `Goodbye`},
 	}
 	for ex, s := range tests {

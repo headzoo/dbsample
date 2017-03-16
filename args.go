@@ -35,13 +35,13 @@ func (c *ConnectionArgs) dsn() string {
 
 // DumpArgs...
 type DumpArgs struct {
-	Limit            int
-	Routines         bool
-	Triggers         bool
+	Limit              int
+	Routines           bool
+	Triggers           bool
 	SkipCreateDatabase bool
-	SkipLockTables   bool
-	SkipAddDropTable bool
-	ExtendedInsert   bool
+	SkipLockTables     bool
+	SkipAddDropTable   bool
+	ExtendedInsert     bool
 }
 
 // ParseFlags parses the command line flags.

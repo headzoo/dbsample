@@ -12,11 +12,16 @@ type (
 
 // Trigger...
 type Trigger struct {
-	Name      string
-	CreateSQL string
-	SQLMode   string
-	CharSet   string
-	Collation string
+	Name              string
+	CreateSQL         string
+	ActionTiming      string
+	EventManipulation string
+	EventObjectTable  string
+	ActionOrientation string
+	Definer           string
+	SQLMode           string
+	CharSet           string
+	Collation         string
 }
 
 // Routine...
@@ -36,13 +41,13 @@ type Routine struct {
 
 // View...
 type View struct {
-	Name      string
-	Columns   ColumnGraph
-	CreateSQL string
-	CharSet   string
-	Collation string
-	SecurityType    string
-	Definer         string
+	Name         string
+	Columns      ColumnGraph
+	CreateSQL    string
+	CharSet      string
+	Collation    string
+	SecurityType string
+	Definer      string
 }
 
 // Dependency...
@@ -65,7 +70,7 @@ type Table struct {
 
 // Column...
 type Column struct {
-	Name string
+	Name            string
 	OrdinalPosition int
-	Type string
+	Type            string
 }

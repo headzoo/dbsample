@@ -10,9 +10,11 @@
 /*!50003 SET character_set_results = {{ .CharSet }} */ ;
 /*!50003 SET collation_connection  = {{ .Collation }} */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'NO_ENGINE_SUBSTITUTION' */ ;
+/*!50003 SET sql_mode              = '{{ .SQLMode }}' */ ;
 DELIMITER ;;
-{{ .CreateSQL }} ;;
+/*!50003 CREATE*/ /*!50017 DEFINER={{ .Definer }}*/ /*!50003 TRIGGER `{{ .Name }}` {{ .ActionTiming }} {{ .EventManipulation }} ON `{{ .EventObjectTable }}`
+FOR EACH {{ .ActionOrientation }}
+{{ .CreateSQL }} */;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;

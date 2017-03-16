@@ -1,13 +1,13 @@
 package dbsampler
 
 import (
+	"bytes"
 	gosql "database/sql"
 	"errors"
 	"fmt"
 	"github.com/deckarep/golang-set"
 	"regexp"
 	"strings"
-	"bytes"
 )
 
 var air = regexp.MustCompile(`AUTO_INCREMENT=[\d]+ `)
@@ -299,10 +299,10 @@ func (db *MySQLDatabase) setViewCreateSQL(view *View) (err error) {
 	var rows *gosql.Rows
 	if rows, err = db.server.query(
 		"SELECT `VIEW_DEFINITION`, `DEFINER`, `SECURITY_TYPE`, `CHARACTER_SET_CLIENT`, `COLLATION_CONNECTION`"+
-		"FROM `INFORMATION_SCHEMA`.`VIEWS` "+
-		"WHERE `TABLE_SCHEMA` = %s "+
-		"AND `TABLE_NAME` = %s "+
-		"LIMIT 1",
+			"FROM `INFORMATION_SCHEMA`.`VIEWS` "+
+			"WHERE `TABLE_SCHEMA` = %s "+
+			"AND `TABLE_NAME` = %s "+
+			"LIMIT 1",
 		MySQLQuote(db.Name()),
 		MySQLQuote(view.Name),
 	); err != nil {
@@ -358,7 +358,24 @@ func (db *MySQLDatabase) setRoutineCreateSQL(r *Routine) (err error) {
 // setTriggerCreateSQL...
 func (db *MySQLDatabase) setTriggerCreateSQL(t *Trigger) (err error) {
 	var rows *gosql.Rows
-	if rows, err = db.server.query("SHOW CREATE TRIGGER %s", MySQLBacktick(t.Name)); err != nil {
+	if rows, err = db.server.query(
+		"SELECT "+
+			"`ACTION_STATEMENT`, "+
+			"`ACTION_TIMING`, "+
+			"`EVENT_MANIPULATION`, "+
+			"`EVENT_OBJECT_TABLE`, "+
+			"`ACTION_ORIENTATION`, "+
+			"`DEFINER`, "+
+			"`SQL_MODE`, "+
+			"`CHARACTER_SET_CLIENT`, "+
+			"`COLLATION_CONNECTION`"+
+			"FROM `INFORMATION_SCHEMA`.`TRIGGERS` "+
+			"WHERE `TRIGGER_SCHEMA` = %s "+
+			"AND `TRIGGER_NAME` = %s "+
+			"LIMIT 1",
+		MySQLQuote(db.Name()),
+		MySQLQuote(t.Name),
+	); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -367,11 +384,19 @@ func (db *MySQLDatabase) setTriggerCreateSQL(t *Trigger) (err error) {
 		err = fmt.Errorf("SHOW CREATE TRIGGER %s returned 0 rows", MySQLBacktick(t.Name))
 		return
 	}
-	var a string
-	var b string
-	if err = rows.Scan(&a, &t.SQLMode, &t.CreateSQL, &t.CharSet, &t.Collation, &b); err != nil {
+	if err = rows.Scan(
+		&t.CreateSQL,
+		&t.ActionTiming,
+		&t.EventManipulation,
+		&t.EventObjectTable,
+		&t.ActionOrientation,
+		&t.Definer,
+		&t.SQLMode,
+		&t.CharSet,
+		&t.Collation); err != nil {
 		return
 	}
+	t.Definer = MySQLBacktickUser(t.Definer)
 	return
 }
 
@@ -380,16 +405,16 @@ func (db *MySQLDatabase) tableColumns(tableName string) (cols ColumnGraph, err e
 	var rows *gosql.Rows
 	if rows, err = db.server.query(
 		"SELECT `COLUMN_NAME`, `ORDINAL_POSITION`, `COLUMN_TYPE` "+
-		"FROM `INFORMATION_SCHEMA`.`COLUMNS` "+
-		"WHERE `TABLE_SCHEMA` = %s "+
-		"AND `TABLE_NAME` = %s",
+			"FROM `INFORMATION_SCHEMA`.`COLUMNS` "+
+			"WHERE `TABLE_SCHEMA` = %s "+
+			"AND `TABLE_NAME` = %s",
 		MySQLQuote(db.Name()),
 		MySQLQuote(tableName),
 	); err != nil {
 		return
 	}
 	defer rows.Close()
-	
+
 	cols = ColumnGraph{}
 	for rows.Next() {
 		col := &Column{}
@@ -509,7 +534,7 @@ func MySQLEscape(val string) string {
 			b.WriteRune(c)
 		}
 	}
- 	return b.String()
+	return b.String()
 }
 
 // MySQLBacktick...
