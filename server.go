@@ -91,14 +91,25 @@ func (s *Server) VersionNumber() string {
 	return fmt.Sprintf("%s%02s%02s", s.major, s.minor, s.rev)
 }
 
-// querySelect...
-func (s *Server) querySelect(sql string) (results Rows, err error) {
-	var rows *gosql.Rows
-	if rows, err = s.query(sql); err != nil {
-		return
+// query...
+func (s *Server) query(sql string, args ...interface{}) (*gosql.Rows, error) {
+	sql = fmt.Sprintf(sql, args...)
+	rows, err := s.db.Query(sql)
+	if err != nil {
+		return nil, err
 	}
-	defer rows.Close()
-	
+	return rows, nil
+}
+
+// exec...
+func (s *Server) exec(sql string, args ...interface{}) error {
+	sql = fmt.Sprintf(sql, args...)
+	_, err := s.db.Exec(sql)
+	return err
+}
+
+// buildQueryRows...
+func (s *Server) buildQueryRows(rows *gosql.Rows) (results Rows, err error) {
 	var columns []string
 	if columns, err = rows.Columns(); err != nil {
 		return
@@ -121,7 +132,7 @@ func (s *Server) querySelect(sql string) (results Rows, err error) {
 				strValues[i] = string(v)
 			}
 		}
-		
+
 		fields := make(Row, colNum)
 		for i, c := range columns {
 			fields[i] = Field{
@@ -133,23 +144,6 @@ func (s *Server) querySelect(sql string) (results Rows, err error) {
 	}
 	err = rows.Err()
 	return
-}
-
-// query...
-func (s *Server) query(sql string, args ...interface{}) (*gosql.Rows, error) {
-	sql = fmt.Sprintf(sql, args...)
-	rows, err := s.db.Query(sql)
-	if err != nil {
-		return nil, err
-	}
-	return rows, nil
-}
-
-// exec...
-func (s *Server) exec(sql string, args ...interface{}) error {
-	sql = fmt.Sprintf(sql, args...)
-	_, err := s.db.Exec(sql)
-	return err
 }
 
 // selectDatabaseCharSet...

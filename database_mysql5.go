@@ -291,20 +291,34 @@ func (db *MySQL5Database) setTableDependencies(table *Table) (err error) {
 
 // setTableGraphRows...
 func (db *MySQL5Database) setTableGraphRows(tables TableGraph) (err error) {
-	defer func() {
-		err = db.unlockTables()
-	}()
-
 	err = resolveTableConditions(tables, func(t *Table, conditions map[string][]string) (rows Rows, err error) {
-		if err = db.lockTableRead(t.Name); err != nil {
+		var tx *gosql.Tx
+		if tx, err = db.server.db.Begin(); err != nil {
 			return
 		}
+		defer func() {
+			if err2 := tx.Commit(); err2 != nil {
+				err = err2
+			}
+		}()
+		if err = db.lockTableRead(t.Name, tx); err != nil {
+			return
+		}
+		defer func() {
+			if err2 := db.unlockTables(tx); err2 != nil {
+				err = err2
+			}
+		}()
+		
 		sql := db.buildSelectRowsSQL(t.Name, conditions)
 		t.AppendDebugMsg(sql)
-		if rows, err = db.server.querySelect(sql); err != nil {
+		var qrows *gosql.Rows
+		if qrows, err = tx.Query(sql); err != nil {
 			return
 		}
-		if err = db.unlockTables(); err != nil {
+		defer qrows.Close()
+		
+		if rows, err = db.server.buildQueryRows(qrows); err != nil {
 			return
 		}
 		t.Rows = rows
@@ -542,9 +556,10 @@ func (db *MySQL5Database) buildWhereIn(conditions map[string][]string) string {
 }
 
 // lockTableRead...
-func (db *MySQL5Database) lockTableRead(tableName string) error {
+func (db *MySQL5Database) lockTableRead(tableName string, tx *gosql.Tx) error {
 	if !db.server.args.SkipLockTables {
-		if err := db.server.exec("LOCK TABLES %s READ LOCAL", MySQL5Backtick(tableName)); err != nil {
+		sql := fmt.Sprintf("LOCK TABLES %s READ LOCAL", MySQL5Backtick(tableName))
+		if _, err := tx.Exec(sql); err != nil {
 			return err
 		}
 	}
@@ -552,9 +567,9 @@ func (db *MySQL5Database) lockTableRead(tableName string) error {
 }
 
 // unlockTables...
-func (db *MySQL5Database) unlockTables() error {
+func (db *MySQL5Database) unlockTables(tx *gosql.Tx) error {
 	if !db.server.args.SkipLockTables {
-		if err := db.server.exec("UNLOCK TABLES"); err != nil {
+		if _, err := tx.Exec("UNLOCK TABLES"); err != nil {
 			return err
 		}
 	}
