@@ -9,6 +9,54 @@ import (
 )
 
 var air = regexp.MustCompile(`AUTO_INCREMENT=[\d]+ `)
+var mysqlStmts *MySQLPreparedStatements
+
+// MySQLPreparedStatements...
+type MySQLPreparedStatements struct {
+	db    *gosql.DB
+	stmts map[string]*gosql.Stmt
+	err   error
+}
+
+// NewMySQLPreparedStatements returns a new *NewMySQLPreparedStatements instance.
+func NewMySQLPreparedStatements(db *gosql.DB) *MySQLPreparedStatements {
+	return &MySQLPreparedStatements{
+		db:    db,
+		stmts: map[string]*gosql.Stmt{},
+	}
+}
+
+// Prepare...
+func (p *MySQLPreparedStatements) Prepare(name, sql string) error {
+	if p.err != nil {
+		return fmt.Errorf("Cannot prepare when last error is not nil: %s", p.err.Error())
+	}
+	if _, ok := p.stmts[name]; !ok {
+		stmt, err := p.db.Prepare(sql)
+		if err != nil {
+			p.err = err
+			return err
+		}
+		p.stmts[name] = stmt
+	}
+	return nil
+}
+
+// Query...
+func (p *MySQLPreparedStatements) Query(name string, args ...interface{}) (*gosql.Rows, error) {
+	if p.err != nil {
+		return nil, fmt.Errorf("Cannot query when last error is not nil: %s", p.err.Error())
+	}
+	if _, ok := p.stmts[name]; !ok {
+		return nil, fmt.Errorf("Prepared statement %s not created", name)
+	}
+	return p.stmts[name].Query(args...)
+}
+
+// Err returns the last error.
+func (p *MySQLPreparedStatements) Err() error {
+	return p.err
+}
 
 // MySQLDatabase implements Database for MySQL.
 type MySQLDatabase struct {
@@ -21,6 +69,9 @@ type MySQLDatabase struct {
 
 // NewMySQLDatabase returns a new *MySQLDatabase instance.
 func NewMySQLDatabase(server *Server, name, charSet, collation string) *MySQLDatabase {
+	if mysqlStmts == nil {
+		mysqlStmts = NewMySQLPreparedStatements(server.db)
+	}
 	return &MySQLDatabase{
 		server:    server,
 		name:      name,
@@ -84,14 +135,15 @@ func (db *MySQLDatabase) SetCreateSQL(sql string) {
 
 // Tables...
 func (db *MySQLDatabase) Tables() (tables TableGraph, err error) {
-	var rows *gosql.Rows
-	if rows, err = db.server.query(
+	mysqlStmts.Prepare(
+		"Tables",
 		"SELECT `TABLE_NAME`, `TABLE_COLLATION` "+
-			"FROM `INFORMATION_SCHEMA`.`TABLES` "+
-			"WHERE `TABLE_SCHEMA` = %s "+
-			"AND `TABLE_TYPE` = 'BASE TABLE'",
-		MySQLQuote(db.name),
-	); err != nil {
+		"FROM `INFORMATION_SCHEMA`.`TABLES` "+
+		"WHERE `TABLE_SCHEMA` = ? "+
+		"AND `TABLE_TYPE` = 'BASE TABLE'",
+	)
+	var rows *gosql.Rows
+	if rows, err = mysqlStmts.Query("Tables", db.Name()); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -137,14 +189,15 @@ func (db *MySQLDatabase) Tables() (tables TableGraph, err error) {
 
 // Views...
 func (db *MySQLDatabase) Views() (views ViewGraph, err error) {
-	var rows *gosql.Rows
-	if rows, err = db.server.query(
+	mysqlStmts.Prepare(
+		"Views",
 		"SELECT `TABLE_NAME` "+
-			"FROM `INFORMATION_SCHEMA`.`TABLES` "+
-			"WHERE `TABLE_SCHEMA` = %s "+
-			"AND `TABLE_TYPE` = 'VIEW'",
-		MySQLQuote(db.name),
-	); err != nil {
+		"FROM `INFORMATION_SCHEMA`.`TABLES` "+
+		"WHERE `TABLE_SCHEMA` = ? "+
+		"AND `TABLE_TYPE` = 'VIEW'",
+	)
+	var rows *gosql.Rows
+	if rows, err = mysqlStmts.Query("Views", db.Name()); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -173,12 +226,14 @@ func (db *MySQLDatabase) Routines() (routines RoutineGraph, err error) {
 	if !db.server.args.Routines {
 		return
 	}
-
-	var rows *gosql.Rows
-	rows, err = db.server.query(
-		"SELECT `name`, `type`, `character_set_client`, `collation_connection` FROM `mysql`.`proc` WHERE `db` = %s",
-		MySQLQuote(db.name),
+	mysqlStmts.Prepare(
+		"Routines",
+		"SELECT `name`, `type`, `character_set_client`, `collation_connection` "+
+			"FROM `mysql`.`proc` "+
+			"WHERE `db` = ?",
 	)
+	var rows *gosql.Rows
+	rows, err = mysqlStmts.Query("Routines", db.name)
 	if err != nil {
 		return
 	}
@@ -203,15 +258,18 @@ func (db *MySQLDatabase) Routines() (routines RoutineGraph, err error) {
 
 // setTableDependencies...
 func (db *MySQLDatabase) setTableDependencies(table *Table) (err error) {
-	var rows *gosql.Rows
-	if rows, err = db.server.query(
-		"SELECT `REFERENCED_TABLE_NAME`, `REFERENCED_COLUMN_NAME`, `COLUMN_NAME` "+
+	mysqlStmts.Prepare(
+		"setTableDependencies",
+		"SELECT "+
+			"`REFERENCED_TABLE_NAME`, "+
+			"`REFERENCED_COLUMN_NAME`, "+
+			"`COLUMN_NAME` "+
 			"FROM `INFORMATION_SCHEMA`.`KEY_COLUMN_USAGE` "+
-			"WHERE `REFERENCED_TABLE_SCHEMA` = %s "+
-			"AND `TABLE_NAME` = %s",
-		MySQLQuote(db.name),
-		MySQLQuote(table.Name),
-	); err != nil {
+			"WHERE `REFERENCED_TABLE_SCHEMA` = ? "+
+			"AND `TABLE_NAME` = ?",
+	)
+	var rows *gosql.Rows
+	if rows, err = mysqlStmts.Query("setTableDependencies", db.name, table.Name); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -236,7 +294,7 @@ func (db *MySQLDatabase) setTableGraphRows(tables TableGraph) (err error) {
 	defer func() {
 		err = db.unlockTables()
 	}()
-	
+
 	err = resolveTableConditions(tables, func(t *Table, conditions map[string][]string) (rows Rows, err error) {
 		if err = db.lockTableRead(t.Name); err != nil {
 			return
@@ -257,15 +315,15 @@ func (db *MySQLDatabase) setTableGraphRows(tables TableGraph) (err error) {
 
 // setTableTriggers...
 func (db *MySQLDatabase) setTableTriggers(table *Table) (err error) {
-	var rows *gosql.Rows
-	if rows, err = db.server.query(
+	mysqlStmts.Prepare(
+		"setTableTriggers",
 		"SELECT `TRIGGER_NAME` "+
 			"FROM `INFORMATION_SCHEMA`.`TRIGGERS` "+
-			"WHERE `TRIGGER_SCHEMA` = %s "+
-			"AND `EVENT_OBJECT_TABLE` = %s",
-		MySQLQuote(db.name),
-		MySQLQuote(table.Name),
-	); err != nil {
+			"WHERE `TRIGGER_SCHEMA` = ? "+
+			"AND `EVENT_OBJECT_TABLE` = ?",
+	)
+	var rows *gosql.Rows
+	if rows, err = mysqlStmts.Query("setTableTriggers", db.name, table.Name); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -312,16 +370,16 @@ func (db *MySQLDatabase) setTableCreateSQL(table *Table) (err error) {
 
 // setViewCreateSQL...
 func (db *MySQLDatabase) setViewCreateSQL(view *View) (err error) {
-	var rows *gosql.Rows
-	if rows, err = db.server.query(
+	mysqlStmts.Prepare(
+		"setViewCreateSQL",
 		"SELECT `VIEW_DEFINITION`, `DEFINER`, `SECURITY_TYPE`, `CHARACTER_SET_CLIENT`, `COLLATION_CONNECTION`"+
-			"FROM `INFORMATION_SCHEMA`.`VIEWS` "+
-			"WHERE `TABLE_SCHEMA` = %s "+
-			"AND `TABLE_NAME` = %s "+
-			"LIMIT 1",
-		MySQLQuote(db.Name()),
-		MySQLQuote(view.Name),
-	); err != nil {
+		"FROM `INFORMATION_SCHEMA`.`VIEWS` "+
+		"WHERE `TABLE_SCHEMA` = ? "+
+		"AND `TABLE_NAME` = ? "+
+		"LIMIT 1",
+	)
+	var rows *gosql.Rows
+	if rows, err = mysqlStmts.Query("setViewCreateSQL", db.Name(), view.Name); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -348,17 +406,16 @@ func (db *MySQLDatabase) setViewCreateSQL(view *View) (err error) {
 
 // setRoutineCreateSQL...
 func (db *MySQLDatabase) setRoutineCreateSQL(r *Routine) (err error) {
-	var rows *gosql.Rows
-	rows, err = db.server.query(
+	mysqlStmts.Prepare(
+		"setRoutineCreateSQL",
 		"SELECT `type`, `body_utf8`, `security_type`, `definer`, `param_list`, `returns`, `is_deterministic`, `sql_mode` "+
-			"FROM `mysql`.`proc` "+
-			"WHERE `name` = %s "+
-			"AND `db` = %s "+
-			"LIMIT 1",
-		MySQLQuote(r.Name),
-		MySQLQuote(db.name),
+		"FROM `mysql`.`proc` "+
+		"WHERE `name` = ? "+
+		"AND `db` = ? "+
+		"LIMIT 1",
 	)
-	if err != nil {
+	var rows *gosql.Rows
+	if rows, err = mysqlStmts.Query("setRoutineCreateSQL", r.Name, db.Name()); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -379,25 +436,25 @@ func (db *MySQLDatabase) setRoutineCreateSQL(r *Routine) (err error) {
 
 // setTriggerCreateSQL...
 func (db *MySQLDatabase) setTriggerCreateSQL(t *Trigger) (err error) {
-	var rows *gosql.Rows
-	if rows, err = db.server.query(
+	mysqlStmts.Prepare(
+		"setTriggerCreateSQL",
 		"SELECT "+
-			"`ACTION_STATEMENT`, "+
-			"`ACTION_TIMING`, "+
-			"`EVENT_MANIPULATION`, "+
-			"`EVENT_OBJECT_TABLE`, "+
-			"`ACTION_ORIENTATION`, "+
-			"`DEFINER`, "+
-			"`SQL_MODE`, "+
-			"`CHARACTER_SET_CLIENT`, "+
-			"`COLLATION_CONNECTION`"+
-			"FROM `INFORMATION_SCHEMA`.`TRIGGERS` "+
-			"WHERE `TRIGGER_SCHEMA` = %s "+
-			"AND `TRIGGER_NAME` = %s "+
-			"LIMIT 1",
-		MySQLQuote(db.Name()),
-		MySQLQuote(t.Name),
-	); err != nil {
+		"`ACTION_STATEMENT`, "+
+		"`ACTION_TIMING`, "+
+		"`EVENT_MANIPULATION`, "+
+		"`EVENT_OBJECT_TABLE`, "+
+		"`ACTION_ORIENTATION`, "+
+		"`DEFINER`, "+
+		"`SQL_MODE`, "+
+		"`CHARACTER_SET_CLIENT`, "+
+		"`COLLATION_CONNECTION`"+
+		"FROM `INFORMATION_SCHEMA`.`TRIGGERS` "+
+		"WHERE `TRIGGER_SCHEMA` = ? "+
+		"AND `TRIGGER_NAME` = ? "+
+		"LIMIT 1",
+	)
+	var rows *gosql.Rows
+	if rows, err = mysqlStmts.Query("setTriggerCreateSQL", db.Name(), t.Name); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -427,15 +484,15 @@ func (db *MySQLDatabase) setTriggerCreateSQL(t *Trigger) (err error) {
 
 // tableColumns...
 func (db *MySQLDatabase) tableColumns(tableName string) (cols ColumnMap, err error) {
-	var rows *gosql.Rows
-	if rows, err = db.server.query(
+	mysqlStmts.Prepare(
+		"tableColumns",
 		"SELECT `COLUMN_NAME`, `ORDINAL_POSITION`, `COLUMN_TYPE`, `DATA_TYPE` "+
-			"FROM `INFORMATION_SCHEMA`.`COLUMNS` "+
-			"WHERE `TABLE_SCHEMA` = %s "+
-			"AND `TABLE_NAME` = %s",
-		MySQLQuote(db.Name()),
-		MySQLQuote(tableName),
-	); err != nil {
+		"FROM `INFORMATION_SCHEMA`.`COLUMNS` "+
+		"WHERE `TABLE_SCHEMA` = ? "+
+		"AND `TABLE_NAME` = ?",
+	)
+	var rows *gosql.Rows
+	if rows, err = mysqlStmts.Query("tableColumns", db.Name(), tableName); err != nil {
 		return
 	}
 	defer rows.Close()
