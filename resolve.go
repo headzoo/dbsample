@@ -3,6 +3,9 @@ package dbsampler
 import (
 	"github.com/deckarep/golang-set"
 	"errors"
+	"fmt"
+	"os"
+	"strings"
 )
 
 type queryConditionsFunc func(*Table, map[string][]string) (Rows, error)
@@ -87,4 +90,32 @@ func resolveTableConditions(tg TableGraph, fn queryConditionsFunc) error {
 	}
 	
 	return nil
+}
+
+var displayTables map[string]*Table
+
+// displayGraph...
+func displayGraph(graph TableGraph) {
+	displayTables = map[string]*Table{}
+	for _, table := range graph {
+		displayTables[table.Name] = table
+	}
+	for _, table := range graph {
+		fmt.Fprintf(os.Stderr, "%s\n", table.Name)
+		displayDependencies(table.Dependencies, 1)
+		fmt.Fprint(os.Stderr, "\n")
+	}
+}
+
+// displayDependencies...
+func displayDependencies(deps []*Dependency, indent int) {
+	tabs := strings.Repeat("--", indent)
+	for _, dep := range deps {
+		fmt.Fprintf(os.Stderr, "%s %d. %s\n", tabs, indent, dep.TableName)
+		if len(displayTables[dep.TableName].Dependencies) > 0 {
+			indent++
+			displayDependencies(displayTables[dep.TableName].Dependencies, indent)
+			indent--
+		}
+	}
 }
