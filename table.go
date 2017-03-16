@@ -1,5 +1,7 @@
 package dbsampler
 
+import "fmt"
+
 type (
 	Row          []Field
 	Rows         []Row
@@ -13,7 +15,7 @@ type (
 // Field...
 type Field struct {
 	Column string
-	Value string
+	Value  string
 }
 
 // Column...
@@ -70,10 +72,29 @@ type Table struct {
 	CreateSQL    string
 	CharSet      string
 	Collation    string
+	DebugMsgs    []string
 	Columns      ColumnMap
 	Dependencies []*Dependency
 	Triggers     TriggerGraph
 	Rows         Rows
+}
+
+// NewTable returns a new *Table instance.
+func NewTable() *Table {
+	return &Table{
+		DebugMsgs:    []string{},
+		Columns:      ColumnMap{},
+		Dependencies: []*Dependency{},
+		Triggers:     TriggerGraph{},
+		Rows:         Rows{},
+	}
+}
+
+// AppendDebugMsg appends a message to the debug messages.
+func (t *Table) AppendDebugMsg(s string, v ...interface{}) {
+	if IsDebugging {
+		t.DebugMsgs = append(t.DebugMsgs, fmt.Sprintf(s, v...))
+	}
 }
 
 // Dependency...

@@ -24,6 +24,7 @@ type MySQL5DumperTemplateValues struct {
 	ShouldDumpViews    bool
 	ShouldDumpRoutines bool
 	ShouldDumpTriggers bool
+	Debug              bool
 	AppName            string
 	AppVersion         string
 	DumpDate           string
@@ -92,6 +93,7 @@ func (g *MySQL5Dumper) Dump(w io.Writer, db Database) error {
 		ShouldDumpViews:    true,
 		ShouldDumpRoutines: g.args.Routines,
 		ShouldDumpTriggers: g.args.Triggers,
+		Debug:              IsDebugging,
 		AppName:            Name,
 		AppVersion:         Version,
 		Database:           db,
@@ -160,7 +162,10 @@ func (g *MySQL5Dumper) tableInserts(table *Table) string {
 		types = append(types, table.Columns[row.Column].DataType)
 	}
 	columns := MySQLJoinColumns(cols)
-	
+	sep := ""
+	if IsDebugging {
+		sep = "\n"
+	}
 	if g.args.ExtendedInsert {
 		inserts := []string{}
 		for _, row := range table.Rows {
@@ -169,9 +174,10 @@ func (g *MySQL5Dumper) tableInserts(table *Table) string {
 				vals = append(vals, v.Value)
 			}
 			inserts = append(inserts, fmt.Sprintf(
-				"INSERT INTO `%s` (%s) VALUES(%s);",
+				"INSERT INTO `%s` (%s)%sVALUES(%s);",
 				table.Name,
 				columns,
+				sep,
 				g.joinValues(vals, types),
 			))
 		}
@@ -185,7 +191,7 @@ func (g *MySQL5Dumper) tableInserts(table *Table) string {
 			}
 			values = append(values, fmt.Sprintf("(%s)", g.joinValues(vals, types)))
 		}
-		return fmt.Sprintf("INSERT INTO `%s` (%s) VALUES %s;\n", table.Name, columns, strings.Join(values, ","))
+		return fmt.Sprintf("INSERT INTO `%s` (%s)%sVALUES %s;\n", table.Name, columns, sep, strings.Join(values, ","))
 	}
 }
 

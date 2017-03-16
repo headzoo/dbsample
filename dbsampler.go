@@ -3,6 +3,7 @@ package dbsampler
 import (
 	"os"
 	"strings"
+	"github.com/davecgh/go-spew/spew"
 )
 
 const (
@@ -11,12 +12,18 @@ const (
 )
 
 var IsDebugBuild = false
+var IsDebugging = false
 
 // init...
 func init() {
 	if strings.Contains(os.Args[0], "go-build") {
 		IsDebugBuild = true
 	}
+}
+
+// dump...
+func dump(v ...interface{}) {
+	spew.Fdump(os.Stderr, v...)
 }
 
 // Dump...

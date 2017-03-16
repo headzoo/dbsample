@@ -86,8 +86,8 @@ func (s *Server) VersionNumber() string {
 	return fmt.Sprintf("%s%02s%02s", s.major, s.minor, s.rev)
 }
 
-// selectRows...
-func (s *Server) selectRows(sql string) (results Rows, err error) {
+// querySelect...
+func (s *Server) querySelect(sql string) (results Rows, err error) {
 	var rows *gosql.Rows
 	if rows, err = s.query(sql); err != nil {
 		return

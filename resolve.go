@@ -5,6 +5,8 @@ import (
 	"errors"
 )
 
+type queryConditionsFunc func(*Table, map[string][]string) (Rows, error)
+
 // resolveTableGraph resolves table dependencies.
 func resolveTableGraph(graph TableGraph) (TableGraph, error) {
 	tableNames := make(map[string]*Table)
@@ -55,4 +57,34 @@ func resolveTableGraph(graph TableGraph) (TableGraph, error) {
 	}
 
 	return resolved, nil
+}
+
+// resolveTableConditions...
+func resolveTableConditions(tg TableGraph, fn queryConditionsFunc) error {
+	tableResults := map[string]Rows{}
+	for _, table := range tg {
+		conditions := map[string][]string{}
+		if len(table.Dependencies) > 0 {
+			for _, dep := range table.Dependencies {
+				refResults := tableResults[dep.TableName]
+				values := []string{}
+				for _, row := range refResults {
+					for _, field := range row {
+						if field.Column == dep.ColumnName {
+							values = append(values, field.Value)
+						}
+					}
+				}
+				conditions[dep.ReferencedColumnName] = values
+			}
+		}
+		
+		res, err := fn(table, conditions)
+		if err != nil {
+			return err
+		}
+		tableResults[table.Name] = res
+	}
+	
+	return nil
 }

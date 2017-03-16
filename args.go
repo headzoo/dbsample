@@ -60,6 +60,7 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 	kingpin.Flag("pass", "The database password.").Short('p').StringVar(&conn.Pass)
 	prompt := kingpin.Flag("prompt", "Prompt for the database password.").Bool()
 
+	kingpin.Flag("debug", "").Hidden().BoolVar(&IsDebugging)
 	kingpin.Flag("routines", "Dump procedures and functions.").BoolVar(&args.Routines)
 	kingpin.Flag("triggers", "Dump triggers.").BoolVar(&args.Triggers)
 	kingpin.Flag("limit", "Max number of rows from each table to dump.").Default("100").Short('l').IntVar(&args.Limit)

@@ -95,7 +95,7 @@ func (db *MySQLDatabase) Tables() (tables TableGraph, err error) {
 
 	tables = make(TableGraph, 0)
 	for rows.Next() {
-		table := &Table{}
+		table := NewTable()
 		if err = rows.Scan(&table.Name, &table.Collation); err != nil {
 			return
 		}
@@ -211,53 +211,32 @@ func (db *MySQLDatabase) setTableDependencies(table *Table) (err error) {
 			return
 		}
 		table.Dependencies = append(table.Dependencies, dep)
+		table.AppendDebugMsg("Dependency: %s.%s", dep.TableName, dep.ColumnName)
 	}
 	return
 }
 
 // setTableGraphRows...
-func (db *MySQLDatabase) setTableGraphRows(tg TableGraph) (err error) {
+func (db *MySQLDatabase) setTableGraphRows(tables TableGraph) (err error) {
 	defer func() {
-		if !db.server.args.SkipLockTables {
-			err = db.server.exec("UNLOCK TABLES")
-		}
+		err = db.unlockTables()
 	}()
-
-	tableResults := map[string]Rows{}
-	for _, table := range tg {
-		conditions := map[string][]string{}
-		if len(table.Dependencies) > 0 {
-			for _, dep := range table.Dependencies {
-				refResults := tableResults[dep.TableName]
-				values := []string{}
-				for _, row := range refResults {
-					for _, field := range row {
-						if field.Column == dep.ColumnName {
-							values = append(values, field.Value)
-						}
-					}
-				}
-				conditions[dep.ReferencedColumnName] = values
-			}
-		}
-		if !db.server.args.SkipLockTables {
-			if err = db.server.exec("LOCK TABLES %s READ LOCAL", MySQLBacktick(table.Name)); err != nil {
-				return
-			}
-		}
-		var results Rows
-		results, err = db.server.selectRows(db.buildSelectRowsSQL(table.Name, conditions))
-		if err != nil {
+	
+	err = resolveTableConditions(tables, func(t *Table, conditions map[string][]string) (rows Rows, err error) {
+		if err = db.lockTableRead(t.Name); err != nil {
 			return
 		}
-		if !db.server.args.SkipLockTables {
-			if err = db.server.exec("UNLOCK TABLES"); err != nil {
-				return
-			}
+		sql := db.buildSelectRowsSQL(t.Name, conditions)
+		t.AppendDebugMsg(sql)
+		if rows, err = db.server.querySelect(sql); err != nil {
+			return
 		}
-		table.Rows = results
-		tableResults[table.Name] = results
-	}
+		if err = db.unlockTables(); err != nil {
+			return
+		}
+		t.Rows = rows
+		return
+	})
 	return
 }
 
@@ -470,6 +449,26 @@ func (db *MySQLDatabase) buildWhereIn(conditions map[string][]string) string {
 		return ""
 	}
 	return fmt.Sprintf("WHERE %s", strings.Join(values, " AND "))
+}
+
+// lockTableRead...
+func (db *MySQLDatabase) lockTableRead(tableName string) error {
+	if !db.server.args.SkipLockTables {
+		if err := db.server.exec("LOCK TABLES %s READ LOCAL", MySQLBacktick(tableName)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// unlockTables...
+func (db *MySQLDatabase) unlockTables() error {
+	if !db.server.args.SkipLockTables {
+		if err := db.server.exec("UNLOCK TABLES"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // MySQLEscape...
