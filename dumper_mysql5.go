@@ -161,7 +161,7 @@ func (g *MySQL5Dumper) tableInserts(table *Table) string {
 		cols = append(cols, row.Column)
 		types = append(types, table.Columns[row.Column].DataType)
 	}
-	columns := MySQLJoinColumns(cols)
+	columns := MySQL5JoinColumns(cols)
 	sep := ""
 	if IsDebugging {
 		sep = "\n"
@@ -204,7 +204,7 @@ func (g *MySQL5Dumper) joinValues(vals []string, types []string) string {
 			}
 			vals[i] = val
 		} else {
-			vals[i] = MySQLQuote(val)
+			vals[i] = MySQL5Quote(val)
 		}
 	}
 	return strings.Join(vals, ", ")

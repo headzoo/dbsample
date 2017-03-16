@@ -8,26 +8,26 @@ import (
 	"strings"
 )
 
-var air = regexp.MustCompile(`AUTO_INCREMENT=[\d]+ `)
-var mysqlStmts *MySQLPreparedStatements
+var mysql5RegexpAI = regexp.MustCompile(`AUTO_INCREMENT=[\d]+ `)
+var mysql5Stmts *MySQL5PreparedStatements
 
-// MySQLPreparedStatements...
-type MySQLPreparedStatements struct {
+// MySQL5PreparedStatements...
+type MySQL5PreparedStatements struct {
 	db    *gosql.DB
 	stmts map[string]*gosql.Stmt
 	err   error
 }
 
-// NewMySQLPreparedStatements returns a new *NewMySQLPreparedStatements instance.
-func NewMySQLPreparedStatements(db *gosql.DB) *MySQLPreparedStatements {
-	return &MySQLPreparedStatements{
+// NewMySQL5PreparedStatements returns a new *MySQL5PreparedStatements instance.
+func NewMySQL5PreparedStatements(db *gosql.DB) *MySQL5PreparedStatements {
+	return &MySQL5PreparedStatements{
 		db:    db,
 		stmts: map[string]*gosql.Stmt{},
 	}
 }
 
 // Prepare...
-func (p *MySQLPreparedStatements) Prepare(name, sql string) error {
+func (p *MySQL5PreparedStatements) Prepare(name, sql string) error {
 	if p.err != nil {
 		return fmt.Errorf("Cannot prepare when last error is not nil: %s", p.err.Error())
 	}
@@ -43,7 +43,7 @@ func (p *MySQLPreparedStatements) Prepare(name, sql string) error {
 }
 
 // Query...
-func (p *MySQLPreparedStatements) Query(name string, args ...interface{}) (*gosql.Rows, error) {
+func (p *MySQL5PreparedStatements) Query(name string, args ...interface{}) (*gosql.Rows, error) {
 	if p.err != nil {
 		return nil, fmt.Errorf("Cannot query when last error is not nil: %s", p.err.Error())
 	}
@@ -54,12 +54,12 @@ func (p *MySQLPreparedStatements) Query(name string, args ...interface{}) (*gosq
 }
 
 // Err returns the last error.
-func (p *MySQLPreparedStatements) Err() error {
+func (p *MySQL5PreparedStatements) Err() error {
 	return p.err
 }
 
-// MySQLDatabase implements Database for MySQL.
-type MySQLDatabase struct {
+// MySQL5Database implements Database for MySQL5.
+type MySQL5Database struct {
 	name      string
 	server    *Server
 	charSet   string
@@ -67,12 +67,12 @@ type MySQLDatabase struct {
 	createSQL string
 }
 
-// NewMySQLDatabase returns a new *MySQLDatabase instance.
-func NewMySQLDatabase(server *Server, name, charSet, collation string) *MySQLDatabase {
-	if mysqlStmts == nil {
-		mysqlStmts = NewMySQLPreparedStatements(server.db)
+// NewMySQL5Database returns a new *MySQL5Database instance.
+func NewMySQL5Database(server *Server, name, charSet, collation string) *MySQL5Database {
+	if mysql5Stmts == nil {
+		mysql5Stmts = NewMySQL5PreparedStatements(server.db)
 	}
-	return &MySQLDatabase{
+	return &MySQL5Database{
 		server:    server,
 		name:      name,
 		charSet:   charSet,
@@ -81,41 +81,41 @@ func NewMySQLDatabase(server *Server, name, charSet, collation string) *MySQLDat
 }
 
 // Server...
-func (db *MySQLDatabase) Server() *Server {
+func (db *MySQL5Database) Server() *Server {
 	return db.server
 }
 
 // Name...
-func (db *MySQLDatabase) Name() string {
+func (db *MySQL5Database) Name() string {
 	return db.name
 }
 
 // SetName...
-func (db *MySQLDatabase) SetName(name string) {
+func (db *MySQL5Database) SetName(name string) {
 	db.name = name
 }
 
 // CharSet...
-func (db *MySQLDatabase) CharSet() string {
+func (db *MySQL5Database) CharSet() string {
 	return db.charSet
 }
 
 // Collation...
-func (db *MySQLDatabase) Collation() string {
+func (db *MySQL5Database) Collation() string {
 	return db.collation
 }
 
 // CreateSQL...
-func (db *MySQLDatabase) CreateSQL() (string, error) {
+func (db *MySQL5Database) CreateSQL() (string, error) {
 	if db.createSQL == "" {
-		rows, err := db.server.query("SHOW CREATE DATABASE %s", MySQLBacktick(db.name))
+		rows, err := db.server.query("SHOW CREATE DATABASE %s", MySQL5Backtick(db.name))
 		if err != nil {
 			return "", err
 		}
 		defer rows.Close()
 
 		if !rows.Next() {
-			return "", fmt.Errorf("SHOW CREATE DATABASE %s returned 0 rows", MySQLBacktick(db.name))
+			return "", fmt.Errorf("SHOW CREATE DATABASE %s returned 0 rows", MySQL5Backtick(db.name))
 		}
 		if err = rows.Err(); err != nil {
 			return "", err
@@ -129,13 +129,13 @@ func (db *MySQLDatabase) CreateSQL() (string, error) {
 }
 
 // SetCreateSQL...
-func (db *MySQLDatabase) SetCreateSQL(sql string) {
+func (db *MySQL5Database) SetCreateSQL(sql string) {
 	db.createSQL = sql
 }
 
 // Tables...
-func (db *MySQLDatabase) Tables() (tables TableGraph, err error) {
-	mysqlStmts.Prepare(
+func (db *MySQL5Database) Tables() (tables TableGraph, err error) {
+	mysql5Stmts.Prepare(
 		"Tables",
 		"SELECT `TABLE_NAME`, `TABLE_COLLATION` "+
 		"FROM `INFORMATION_SCHEMA`.`TABLES` "+
@@ -143,7 +143,7 @@ func (db *MySQLDatabase) Tables() (tables TableGraph, err error) {
 		"AND `TABLE_TYPE` = 'BASE TABLE'",
 	)
 	var rows *gosql.Rows
-	if rows, err = mysqlStmts.Query("Tables", db.Name()); err != nil {
+	if rows, err = mysql5Stmts.Query("Tables", db.Name()); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -188,8 +188,8 @@ func (db *MySQLDatabase) Tables() (tables TableGraph, err error) {
 }
 
 // Views...
-func (db *MySQLDatabase) Views() (views ViewGraph, err error) {
-	mysqlStmts.Prepare(
+func (db *MySQL5Database) Views() (views ViewGraph, err error) {
+	mysql5Stmts.Prepare(
 		"Views",
 		"SELECT `TABLE_NAME` "+
 		"FROM `INFORMATION_SCHEMA`.`TABLES` "+
@@ -197,7 +197,7 @@ func (db *MySQLDatabase) Views() (views ViewGraph, err error) {
 		"AND `TABLE_TYPE` = 'VIEW'",
 	)
 	var rows *gosql.Rows
-	if rows, err = mysqlStmts.Query("Views", db.Name()); err != nil {
+	if rows, err = mysql5Stmts.Query("Views", db.Name()); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -222,18 +222,18 @@ func (db *MySQLDatabase) Views() (views ViewGraph, err error) {
 }
 
 // Routines...
-func (db *MySQLDatabase) Routines() (routines RoutineGraph, err error) {
+func (db *MySQL5Database) Routines() (routines RoutineGraph, err error) {
 	if !db.server.args.Routines {
 		return
 	}
-	mysqlStmts.Prepare(
+	mysql5Stmts.Prepare(
 		"Routines",
 		"SELECT `name`, `type`, `character_set_client`, `collation_connection` "+
 			"FROM `mysql`.`proc` "+
 			"WHERE `db` = ?",
 	)
 	var rows *gosql.Rows
-	rows, err = mysqlStmts.Query("Routines", db.name)
+	rows, err = mysql5Stmts.Query("Routines", db.name)
 	if err != nil {
 		return
 	}
@@ -257,8 +257,8 @@ func (db *MySQLDatabase) Routines() (routines RoutineGraph, err error) {
 }
 
 // setTableDependencies...
-func (db *MySQLDatabase) setTableDependencies(table *Table) (err error) {
-	mysqlStmts.Prepare(
+func (db *MySQL5Database) setTableDependencies(table *Table) (err error) {
+	mysql5Stmts.Prepare(
 		"setTableDependencies",
 		"SELECT "+
 			"`REFERENCED_TABLE_NAME`, "+
@@ -269,7 +269,7 @@ func (db *MySQLDatabase) setTableDependencies(table *Table) (err error) {
 			"AND `TABLE_NAME` = ?",
 	)
 	var rows *gosql.Rows
-	if rows, err = mysqlStmts.Query("setTableDependencies", db.name, table.Name); err != nil {
+	if rows, err = mysql5Stmts.Query("setTableDependencies", db.name, table.Name); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -290,7 +290,7 @@ func (db *MySQLDatabase) setTableDependencies(table *Table) (err error) {
 }
 
 // setTableGraphRows...
-func (db *MySQLDatabase) setTableGraphRows(tables TableGraph) (err error) {
+func (db *MySQL5Database) setTableGraphRows(tables TableGraph) (err error) {
 	defer func() {
 		err = db.unlockTables()
 	}()
@@ -314,8 +314,8 @@ func (db *MySQLDatabase) setTableGraphRows(tables TableGraph) (err error) {
 }
 
 // setTableTriggers...
-func (db *MySQLDatabase) setTableTriggers(table *Table) (err error) {
-	mysqlStmts.Prepare(
+func (db *MySQL5Database) setTableTriggers(table *Table) (err error) {
+	mysql5Stmts.Prepare(
 		"setTableTriggers",
 		"SELECT `TRIGGER_NAME` "+
 			"FROM `INFORMATION_SCHEMA`.`TRIGGERS` "+
@@ -323,7 +323,7 @@ func (db *MySQLDatabase) setTableTriggers(table *Table) (err error) {
 			"AND `EVENT_OBJECT_TABLE` = ?",
 	)
 	var rows *gosql.Rows
-	if rows, err = mysqlStmts.Query("setTableTriggers", db.name, table.Name); err != nil {
+	if rows, err = mysql5Stmts.Query("setTableTriggers", db.name, table.Name); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -346,15 +346,15 @@ func (db *MySQLDatabase) setTableTriggers(table *Table) (err error) {
 }
 
 // showCreateTable...
-func (db *MySQLDatabase) setTableCreateSQL(table *Table) (err error) {
+func (db *MySQL5Database) setTableCreateSQL(table *Table) (err error) {
 	var rows *gosql.Rows
-	if rows, err = db.server.query("SHOW CREATE TABLE %s", MySQLBacktick(table.Name)); err != nil {
+	if rows, err = db.server.query("SHOW CREATE TABLE %s", MySQL5Backtick(table.Name)); err != nil {
 		return
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		err = fmt.Errorf("SHOW CREATE TABLE %s returned 0 rows", MySQLBacktick(table.Name))
+		err = fmt.Errorf("SHOW CREATE TABLE %s returned 0 rows", MySQL5Backtick(table.Name))
 		return
 	}
 	if err = rows.Err(); err != nil {
@@ -364,13 +364,13 @@ func (db *MySQLDatabase) setTableCreateSQL(table *Table) (err error) {
 	if err = rows.Scan(&a, &table.CreateSQL); err != nil {
 		return
 	}
-	table.CreateSQL = air.ReplaceAllString(table.CreateSQL, "")
+	table.CreateSQL = mysql5RegexpAI.ReplaceAllString(table.CreateSQL, "")
 	return
 }
 
 // setViewCreateSQL...
-func (db *MySQLDatabase) setViewCreateSQL(view *View) (err error) {
-	mysqlStmts.Prepare(
+func (db *MySQL5Database) setViewCreateSQL(view *View) (err error) {
+	mysql5Stmts.Prepare(
 		"setViewCreateSQL",
 		"SELECT `VIEW_DEFINITION`, `DEFINER`, `SECURITY_TYPE`, `CHARACTER_SET_CLIENT`, `COLLATION_CONNECTION`"+
 		"FROM `INFORMATION_SCHEMA`.`VIEWS` "+
@@ -379,13 +379,13 @@ func (db *MySQLDatabase) setViewCreateSQL(view *View) (err error) {
 		"LIMIT 1",
 	)
 	var rows *gosql.Rows
-	if rows, err = mysqlStmts.Query("setViewCreateSQL", db.Name(), view.Name); err != nil {
+	if rows, err = mysql5Stmts.Query("setViewCreateSQL", db.Name(), view.Name); err != nil {
 		return
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		err = fmt.Errorf("SHOW CREATE VIEW %s returned 0 rows", MySQLBacktick(view.Name))
+		err = fmt.Errorf("SHOW CREATE VIEW %s returned 0 rows", MySQL5Backtick(view.Name))
 		return
 	}
 	if err = rows.Err(); err != nil {
@@ -394,8 +394,8 @@ func (db *MySQLDatabase) setViewCreateSQL(view *View) (err error) {
 	if err = rows.Scan(&view.CreateSQL, &view.Definer, &view.SecurityType, &view.CharSet, &view.Collation); err != nil {
 		return
 	}
-	view.CreateSQL = fmt.Sprintf("VIEW %s AS %s", MySQLBacktick(view.Name), view.CreateSQL)
-	view.Definer = MySQLBacktickUser(view.Definer)
+	view.CreateSQL = fmt.Sprintf("VIEW %s AS %s", MySQL5Backtick(view.Name), view.CreateSQL)
+	view.Definer = MySQL5BacktickUser(view.Definer)
 	var cols ColumnMap
 	if cols, err = db.tableColumns(view.Name); err != nil {
 		return
@@ -405,8 +405,8 @@ func (db *MySQLDatabase) setViewCreateSQL(view *View) (err error) {
 }
 
 // setRoutineCreateSQL...
-func (db *MySQLDatabase) setRoutineCreateSQL(r *Routine) (err error) {
-	mysqlStmts.Prepare(
+func (db *MySQL5Database) setRoutineCreateSQL(r *Routine) (err error) {
+	mysql5Stmts.Prepare(
 		"setRoutineCreateSQL",
 		"SELECT `type`, `body_utf8`, `security_type`, `definer`, `param_list`, `returns`, `is_deterministic`, `sql_mode` "+
 		"FROM `mysql`.`proc` "+
@@ -415,13 +415,13 @@ func (db *MySQLDatabase) setRoutineCreateSQL(r *Routine) (err error) {
 		"LIMIT 1",
 	)
 	var rows *gosql.Rows
-	if rows, err = mysqlStmts.Query("setRoutineCreateSQL", r.Name, db.Name()); err != nil {
+	if rows, err = mysql5Stmts.Query("setRoutineCreateSQL", r.Name, db.Name()); err != nil {
 		return
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		err = fmt.Errorf("SHOW CREATE ROUTINE %s returned 0 rows", MySQLBacktick(r.Name))
+		err = fmt.Errorf("SHOW CREATE ROUTINE %s returned 0 rows", MySQL5Backtick(r.Name))
 		return
 	}
 	if err = rows.Err(); err != nil {
@@ -430,13 +430,13 @@ func (db *MySQLDatabase) setRoutineCreateSQL(r *Routine) (err error) {
 	if err = rows.Scan(&r.Type, &r.CreateSQL, &r.SecurityType, &r.Definer, &r.ParamList, &r.Returns, &r.IsDeterministic, &r.SQLMode); err != nil {
 		return
 	}
-	r.Definer = MySQLBacktickUser(r.Definer)
+	r.Definer = MySQL5BacktickUser(r.Definer)
 	return
 }
 
 // setTriggerCreateSQL...
-func (db *MySQLDatabase) setTriggerCreateSQL(t *Trigger) (err error) {
-	mysqlStmts.Prepare(
+func (db *MySQL5Database) setTriggerCreateSQL(t *Trigger) (err error) {
+	mysql5Stmts.Prepare(
 		"setTriggerCreateSQL",
 		"SELECT "+
 		"`ACTION_STATEMENT`, "+
@@ -454,13 +454,13 @@ func (db *MySQLDatabase) setTriggerCreateSQL(t *Trigger) (err error) {
 		"LIMIT 1",
 	)
 	var rows *gosql.Rows
-	if rows, err = mysqlStmts.Query("setTriggerCreateSQL", db.Name(), t.Name); err != nil {
+	if rows, err = mysql5Stmts.Query("setTriggerCreateSQL", db.Name(), t.Name); err != nil {
 		return
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		err = fmt.Errorf("SHOW CREATE TRIGGER %s returned 0 rows", MySQLBacktick(t.Name))
+		err = fmt.Errorf("SHOW CREATE TRIGGER %s returned 0 rows", MySQL5Backtick(t.Name))
 		return
 	}
 	if err = rows.Err(); err != nil {
@@ -478,13 +478,13 @@ func (db *MySQLDatabase) setTriggerCreateSQL(t *Trigger) (err error) {
 		&t.Collation); err != nil {
 		return
 	}
-	t.Definer = MySQLBacktickUser(t.Definer)
+	t.Definer = MySQL5BacktickUser(t.Definer)
 	return
 }
 
 // tableColumns...
-func (db *MySQLDatabase) tableColumns(tableName string) (cols ColumnMap, err error) {
-	mysqlStmts.Prepare(
+func (db *MySQL5Database) tableColumns(tableName string) (cols ColumnMap, err error) {
+	mysql5Stmts.Prepare(
 		"tableColumns",
 		"SELECT `COLUMN_NAME`, `ORDINAL_POSITION`, `COLUMN_TYPE`, `DATA_TYPE` "+
 		"FROM `INFORMATION_SCHEMA`.`COLUMNS` "+
@@ -492,7 +492,7 @@ func (db *MySQLDatabase) tableColumns(tableName string) (cols ColumnMap, err err
 		"AND `TABLE_NAME` = ?",
 	)
 	var rows *gosql.Rows
-	if rows, err = mysqlStmts.Query("tableColumns", db.Name(), tableName); err != nil {
+	if rows, err = mysql5Stmts.Query("tableColumns", db.Name(), tableName); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -512,7 +512,7 @@ func (db *MySQLDatabase) tableColumns(tableName string) (cols ColumnMap, err err
 }
 
 // buildSelectRowsSQL...
-func (db *MySQLDatabase) buildSelectRowsSQL(tableName string, conditions map[string][]string) string {
+func (db *MySQL5Database) buildSelectRowsSQL(tableName string, conditions map[string][]string) string {
 	where := db.buildWhereIn(conditions)
 	var limit string
 	if db.server.args.Limit != 0 {
@@ -520,18 +520,18 @@ func (db *MySQLDatabase) buildSelectRowsSQL(tableName string, conditions map[str
 	}
 	return fmt.Sprintf(
 		"SELECT * FROM %s %s %s",
-		MySQLBacktick(tableName),
+		MySQL5Backtick(tableName),
 		where,
 		limit,
 	)
 }
 
 // buildWhereIn...
-func (db *MySQLDatabase) buildWhereIn(conditions map[string][]string) string {
+func (db *MySQL5Database) buildWhereIn(conditions map[string][]string) string {
 	values := []string{}
 	for col, vals := range conditions {
 		if len(vals) > 0 {
-			cond := fmt.Sprintf("%s IN(%s)", MySQLBacktick(col), MySQLJoinValues(vals))
+			cond := fmt.Sprintf("%s IN(%s)", MySQL5Backtick(col), MySQL5JoinValues(vals))
 			values = append(values, cond)
 		}
 	}
@@ -542,9 +542,9 @@ func (db *MySQLDatabase) buildWhereIn(conditions map[string][]string) string {
 }
 
 // lockTableRead...
-func (db *MySQLDatabase) lockTableRead(tableName string) error {
+func (db *MySQL5Database) lockTableRead(tableName string) error {
 	if !db.server.args.SkipLockTables {
-		if err := db.server.exec("LOCK TABLES %s READ LOCAL", MySQLBacktick(tableName)); err != nil {
+		if err := db.server.exec("LOCK TABLES %s READ LOCAL", MySQL5Backtick(tableName)); err != nil {
 			return err
 		}
 	}
@@ -552,7 +552,7 @@ func (db *MySQLDatabase) lockTableRead(tableName string) error {
 }
 
 // unlockTables...
-func (db *MySQLDatabase) unlockTables() error {
+func (db *MySQL5Database) unlockTables() error {
 	if !db.server.args.SkipLockTables {
 		if err := db.server.exec("UNLOCK TABLES"); err != nil {
 			return err
@@ -561,9 +561,9 @@ func (db *MySQLDatabase) unlockTables() error {
 	return nil
 }
 
-// MySQLEscape...
+// MySQL5Escape...
 // @see https://dev.mysql.com/doc/refman/5.7/en/string-literals.html
-func MySQLEscape(val string) string {
+func MySQL5Escape(val string) string {
 	b := bytes.Buffer{}
 	for _, c := range val {
 		switch c {
@@ -590,34 +590,34 @@ func MySQLEscape(val string) string {
 	return b.String()
 }
 
-// MySQLBacktick...
-func MySQLBacktick(col string) string {
+// MySQL5Backtick...
+func MySQL5Backtick(col string) string {
 	return fmt.Sprintf("`%s`", col)
 }
 
-// MySQLBacktickUser...
-func MySQLBacktickUser(user string) string {
+// MySQL5BacktickUser...
+func MySQL5BacktickUser(user string) string {
 	parts := strings.SplitN(user, "@", 2)
 	return fmt.Sprintf("`%s`@`%s`", parts[0], parts[1])
 }
 
-// MySQLQuote...
-func MySQLQuote(val string) string {
-	return fmt.Sprintf("'%s'", MySQLEscape(val))
+// MySQL5Quote...
+func MySQL5Quote(val string) string {
+	return fmt.Sprintf("'%s'", MySQL5Escape(val))
 }
 
-// MySQLJoinValues...
-func MySQLJoinValues(vals []string) string {
+// MySQL5JoinValues...
+func MySQL5JoinValues(vals []string) string {
 	for i, val := range vals {
-		vals[i] = MySQLQuote(val)
+		vals[i] = MySQL5Quote(val)
 	}
 	return strings.Join(vals, ", ")
 }
 
-// MySQLJoinColumns...
-func MySQLJoinColumns(cols []string) string {
+// MySQL5JoinColumns...
+func MySQL5JoinColumns(cols []string) string {
 	for i, col := range cols {
-		cols[i] = MySQLBacktick(col)
+		cols[i] = MySQL5Backtick(col)
 	}
 	return strings.Join(cols, ", ")
 }

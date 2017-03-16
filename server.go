@@ -55,7 +55,7 @@ func (s *Server) Database(name string) (Database, error) {
 	case DriverMySQL:
 		switch s.major {
 		case "5":
-			return NewMySQLDatabase(s, name, charSet, collation), nil
+			return NewMySQL5Database(s, name, charSet, collation), nil
 		}
 	}
 	return nil, fmt.Errorf("Database not available for %s %s", s.conn.Driver, s.major)

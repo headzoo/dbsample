@@ -2,7 +2,7 @@ package dbsampler
 
 import "testing"
 
-func TestMySQLEscape(t *testing.T) {
+func TestMySQL5Escape(t *testing.T) {
 	tests := map[string]string{
 		`Hello world`:        `Hello world`,
 		"Hello\x00world":     `Hello\0world`,
@@ -15,59 +15,59 @@ func TestMySQLEscape(t *testing.T) {
 		"\x00\033\b\r\n\t\\": `\0\Z\b\r\n\t\\`,
 	}
 	for s, ex := range tests {
-		ac := MySQLEscape(s)
+		ac := MySQL5Escape(s)
 		if ex != ac {
 			t.Errorf(`Expected '%s', got '%s'`, ex, ac)
 		}
 	}
 }
 
-func TestMySQLQuote(t *testing.T) {
+func TestMySQL5Quote(t *testing.T) {
 	tests := map[string]string{
 		`Hello world`:  `'Hello world'`,
 		"Hello\rworld": `'Hello\rworld'`,
 		"Hello\nworld": `'Hello\nworld'`,
 	}
 	for s, ex := range tests {
-		ac := MySQLQuote(s)
+		ac := MySQL5Quote(s)
 		if ex != ac {
 			t.Errorf(`Expected '%s', got '%s'`, ex, ac)
 		}
 	}
 }
 
-func TestMySQLBacktick(t *testing.T) {
+func TestMySQL5Backtick(t *testing.T) {
 	tests := map[string]string{
 		`Hello world`: "`Hello world`",
 	}
 	for s, ex := range tests {
-		ac := MySQLBacktick(s)
+		ac := MySQL5Backtick(s)
 		if ex != ac {
 			t.Errorf(`Expected '%s', got '%s'`, ex, ac)
 		}
 	}
 }
 
-func TestMySQLJoinValues(t *testing.T) {
+func TestMySQL5JoinValues(t *testing.T) {
 	tests := map[string][]string{
 		`'Hello world'`:            []string{`Hello world`},
 		`'Hello world', 'Goodbye'`: []string{`Hello world`, `Goodbye`},
 	}
 	for ex, s := range tests {
-		ac := MySQLJoinValues(s)
+		ac := MySQL5JoinValues(s)
 		if ex != ac {
 			t.Errorf(`Expected '%s', got '%s'`, ex, ac)
 		}
 	}
 }
 
-func TestMySQLJoinColumns(t *testing.T) {
+func TestMySQL5JoinColumns(t *testing.T) {
 	tests := map[string][]string{
 		"`Hello world`":            []string{`Hello world`},
 		"`Hello world`, `Goodbye`": []string{`Hello world`, `Goodbye`},
 	}
 	for ex, s := range tests {
-		ac := MySQLJoinColumns(s)
+		ac := MySQL5JoinColumns(s)
 		if ex != ac {
 			t.Errorf(`Expected '%s', got '%s'`, ex, ac)
 		}
