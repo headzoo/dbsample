@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"github.com/howeyc/gopass"
 	"gopkg.in/alecthomas/kingpin.v2"
-	"strings"
 	"os"
 	"os/user"
+	"regexp"
 )
 
 const (
@@ -97,34 +97,22 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 	} else {
 		warning("Warning: Using a password on the command line interface can be insecure.")
 	}
-	
+
+	r := regexp.MustCompile(`([\w]+)\.([\w]+)\s+([\w]+)\.([\w]+)`)
 	for _, fk := range *fks {
-		halves := strings.Split(fk, " ")
-		if len(halves) != 2 {
-			return nil, nil, fmt.Errorf("Invalid foreign key specification %s", fk)
+		m := r.FindStringSubmatch(fk)
+		if len(m) != 5 {
+			return nil, nil, fmt.Errorf(`Invalid foreign key "%s". Must be "table.column references.column"`, fk)
 		}
-		parts := strings.Split(halves[0], ".")
-		if len(parts) != 2 {
-			return nil, nil, fmt.Errorf("Invalid foreign key specification %s", fk)
+		if _, ok := args.Dependencies[m[1]]; !ok {
+			args.Dependencies[m[1]] = []*Dependency{}
 		}
-		table := parts[0]
-		refCol := parts[1]
-		parts = strings.Split(halves[1], ".")
-		if len(parts) != 2 {
-			return nil, nil, fmt.Errorf("Invalid foreign key specification %s", fk)
-		}
-		tblName := parts[0]
-		colName := parts[1]
-		
-		if _, ok := args.Dependencies[table]; !ok {
-			args.Dependencies[table] = []*Dependency{}
-		}
-		args.Dependencies[table] = append(args.Dependencies[table], &Dependency{
-			TableName: tblName,
-			ColumnName: colName,
-			ReferencedColumnName: refCol,
+		args.Dependencies[m[1]] = append(args.Dependencies[m[1]], &Dependency{
+			TableName: m[3],
+			ColumnName: m[4],
+			ReferencedColumnName: m[2],
 		})
 	}
-
+	
 	return conn, args, nil
 }
