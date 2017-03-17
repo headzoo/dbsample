@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"github.com/davecgh/go-spew/spew"
+	"fmt"
 )
 
 const (
@@ -26,6 +27,11 @@ func dump(v ...interface{}) {
 	spew.Fdump(os.Stderr, v...)
 }
 
+// warning...
+func warning(str string, v ...interface{}) {
+	fmt.Fprintf(os.Stderr, str+"\n", v...)
+}
+
 // Dump...
 func Dump() error {
 	conn, args, err := ParseFlags()
@@ -41,6 +47,8 @@ func Dump() error {
 	if err != nil {
 		return err
 	}
+	//db.Tables()
+	//return nil
 	dumper, err := NewDumper(server)
 	if err != nil {
 		return err

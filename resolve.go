@@ -1,13 +1,11 @@
 package dbsampler
 
 import (
-	"github.com/deckarep/golang-set"
 	"fmt"
+	"github.com/deckarep/golang-set"
 	"os"
 	"strings"
 )
-
-type queryConditionsFunc func(*Table, map[string][]string) (Rows, error)
 
 // resolveTableGraph resolves table dependencies.
 func resolveTableGraph(graph TableGraph) (TableGraph, error) {
@@ -21,7 +19,7 @@ func resolveTableGraph(graph TableGraph) (TableGraph, error) {
 		tableNames[table.Name] = table
 		tableDeps[table.Name] = depSet
 	}
-	
+
 	var resolved TableGraph
 	for len(tableDeps) != 0 {
 		readySet := mapset.NewSet()
@@ -32,8 +30,12 @@ func resolveTableGraph(graph TableGraph) (TableGraph, error) {
 		}
 		if readySet.Cardinality() == 0 {
 			s := []string{}
-			for tableName := range tableDeps {
-				s = append(s, "`"+tableName+"`")
+			for tableName, deps := range tableDeps {
+				f := []string{}
+				for d := range deps.Iter() {
+					f = append(f, d.(string))
+				}
+				s = append(s, fmt.Sprintf("`%s` = %s", tableName, strings.Join(f, ", ")))
 			}
 			return resolved, fmt.Errorf("Circular dependency found -> %s", strings.Join(s, ", "))
 		}
@@ -50,34 +52,62 @@ func resolveTableGraph(graph TableGraph) (TableGraph, error) {
 	return resolved, nil
 }
 
-// resolveTableConditions...
-func resolveTableConditions(tg TableGraph, fn queryConditionsFunc) error {
-	tableResults := map[string]Rows{}
-	for _, table := range tg {
-		conditions := map[string][]string{}
-		if len(table.Dependencies) > 0 {
-			for _, dep := range table.Dependencies {
-				refResults := tableResults[dep.TableName]
-				values := []string{}
-				for _, row := range refResults {
-					for _, field := range row {
-						if field.Column == dep.ColumnName {
-							values = append(values, field.Value)
+type resolveTableRowsFunc func(table *Table, cond map[string]mapset.Set) (Rows, error)
+
+// resolveTableRows...
+func resolveTableRows(tables TableGraph, fn resolveTableRowsFunc) (err error) {
+	depRows := make(map[string]map[string]mapset.Set)
+	skipTables := make(map[string]bool)
+	for _, table := range tables {
+		skip := false
+		if _, ok := skipTables[table.Name]; ok {
+			continue
+		}
+		for _, dep := range table.Dependencies {
+			if _, ok := skipTables[dep.TableName]; ok {
+				skip = true
+			}
+		}
+		if skip {
+			continue
+		}
+
+		cond := map[string]mapset.Set{}
+		if _, ok := depRows[table.Name]; ok {
+			cond = depRows[table.Name]
+		}
+		if table.Rows, err = fn(table, cond); err != nil {
+			return
+		}
+
+		// Should we save these rows because another table depends on them?
+		for _, t := range tables {
+			for _, dep := range t.Dependencies {
+				if dep.TableName == table.Name {
+					if len(table.Rows) == 0 {
+						warning("Skipping `%s`, references empty table `%s`.", t.Name, dep.TableName)
+						skipTables[t.Name] = true
+						continue
+					}
+					if _, ok := depRows[t.Name]; !ok {
+						depRows[t.Name] = make(map[string]mapset.Set)
+					}
+					if _, ok := depRows[t.Name][dep.ReferencedColumnName]; !ok {
+						depRows[t.Name][dep.ReferencedColumnName] = mapset.NewSet()
+					}
+					for _, row := range table.Rows {
+						for _, field := range row {
+							if field.Column == dep.ColumnName {
+								depRows[t.Name][dep.ReferencedColumnName].Add(field.Value)
+							}
 						}
 					}
 				}
-				conditions[dep.ReferencedColumnName] = values
 			}
 		}
-		
-		res, err := fn(table, conditions)
-		if err != nil {
-			return err
-		}
-		tableResults[table.Name] = res
 	}
-	
-	return nil
+
+	return
 }
 
 var displayTables map[string]*Table

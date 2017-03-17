@@ -90,7 +90,7 @@ func (g *MySQL5Dumper) Dump(w io.Writer, db Database) error {
 	vals := MySQL5DumperTemplateValues{
 		ShouldDumpDatabase: !g.args.SkipCreateDatabase,
 		ShouldDumpTables:   true,
-		ShouldDumpViews:    true,
+		ShouldDumpViews:    false,
 		ShouldDumpRoutines: g.args.Routines,
 		ShouldDumpTriggers: g.args.Triggers,
 		Debug:              IsDebugging,
@@ -120,32 +120,31 @@ func (g *MySQL5Dumper) parseTemplates() error {
 		"TableInserts": g.tableInserts,
 	})
 
-	files, err := ioutil.ReadDir(MySQL5DumperTemplatesPath)
-	if err != nil {
-		return err
-	}
-	for _, f := range files {
-		g.parseTemplateFile(path.Join(MySQL5DumperTemplatesPath, f.Name()))
-	}
-	return nil
-}
-
-// parseTemplate...
-func (g *MySQL5Dumper) parseTemplateFile(file string) error {
 	var err error
 	var sql []byte
 	if IsDebugBuild {
-		sql, err = ioutil.ReadFile(file)
+		files, err := ioutil.ReadDir(MySQL5DumperTemplatesPath)
+		if err != nil {
+			return err
+		}
+		for _, file := range files {
+			filename := path.Join(MySQL5DumperTemplatesPath, file.Name())
+			sql, err = ioutil.ReadFile(filename)
+			g.templates, err = g.templates.New(filename).Parse(string(sql))
+			if err != nil {
+				return err
+			}
+		}
 	} else {
-		sql, err = templates.ReadFile(file)
+		for _, file := range templates.FileNames {
+			sql, err = templates.ReadFile(file)
+			g.templates, err = g.templates.New(file).Parse(string(sql))
+			if err != nil {
+				return err
+			}
+		}
 	}
-	if err != nil {
-		return err
-	}
-	g.templates, err = g.templates.New(file).Parse(string(sql))
-	if err != nil {
-		return err
-	}
+	
 	return nil
 }
 

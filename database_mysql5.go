@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"github.com/deckarep/golang-set"
 )
 
 var mysql5RegexpAI = regexp.MustCompile(`AUTO_INCREMENT=[\d]+ `)
@@ -174,7 +175,7 @@ func (db *MySQL5Database) Tables() (tables TableGraph, err error) {
 	if tables, err = resolveTableGraph(tables); err != nil {
 		return
 	}
-	if err = db.setTableGraphRows(tables); err != nil {
+	if err = resolveTableRows(tables, db.queryTableRows); err != nil {
 		return
 	}
 	if db.server.args.Triggers {
@@ -256,6 +257,47 @@ func (db *MySQL5Database) Routines() (routines RoutineGraph, err error) {
 	return
 }
 
+// queryTableRows...
+func (db *MySQL5Database) queryTableRows(table *Table, deps map[string]mapset.Set) (rows Rows, err error) {
+	where := ""
+	if len(deps) > 0 {
+		wheres := []string{}
+		for col, set := range deps {
+			values := []string{}
+			for val := range set.Iter() {
+				values = append(values, val.(string))
+			}
+			wheres = append(wheres, fmt.Sprintf("`%s` IN(%s)", col, MySQL5JoinValues(values)))
+		}
+		where = fmt.Sprintf("WHERE %s", strings.Join(wheres, " AND "))
+	}
+	
+	if err = db.lockTableRead(table.Name); err != nil {
+		return
+	}
+	defer func() {
+		if err2 := db.unlockTables(); err2 != nil {
+			err = err2
+		}
+	}()
+
+	sql := fmt.Sprintf("SELECT * FROM `%s` %s LIMIT %d", table.Name, where, db.server.args.Limit)
+	table.AppendDebugMsg(sql)
+	var qrows *gosql.Rows
+	if qrows, err = db.server.query(sql); err != nil {
+		warning(sql)
+		return
+	}
+	defer qrows.Close()
+	if rows, err = db.server.buildQueryRows(qrows); err != nil {
+		return
+	}
+	if len(rows) == 0 {
+		warning("No rows found in `%s`.", table.Name)
+	}
+	return
+}
+
 // setTableDependencies...
 func (db *MySQL5Database) setTableDependencies(table *Table) (err error) {
 	mysql5Stmts.Prepare(
@@ -266,10 +308,11 @@ func (db *MySQL5Database) setTableDependencies(table *Table) (err error) {
 			"`COLUMN_NAME` "+
 			"FROM `INFORMATION_SCHEMA`.`KEY_COLUMN_USAGE` "+
 			"WHERE `REFERENCED_TABLE_SCHEMA` = ? "+
-			"AND `TABLE_NAME` = ?",
+			"AND `TABLE_NAME` = ? "+
+			"AND `REFERENCED_TABLE_NAME` != ?",
 	)
 	var rows *gosql.Rows
-	if rows, err = mysql5Stmts.Query("setTableDependencies", db.name, table.Name); err != nil {
+	if rows, err = mysql5Stmts.Query("setTableDependencies", db.name, table.Name, table.Name); err != nil {
 		return
 	}
 	defer rows.Close()
@@ -281,49 +324,11 @@ func (db *MySQL5Database) setTableDependencies(table *Table) (err error) {
 			return
 		}
 		table.Dependencies = append(table.Dependencies, dep)
-		table.AppendDebugMsg("Dependency: %s.%s", dep.TableName, dep.ColumnName)
+		table.AppendDebugMsg("Dependency: %s -> %s.%s", dep.ReferencedColumnName, dep.TableName, dep.ColumnName)
 	}
 	if err = rows.Err(); err != nil {
 		return
 	}
-	return
-}
-
-// setTableGraphRows...
-func (db *MySQL5Database) setTableGraphRows(tables TableGraph) (err error) {
-	err = resolveTableConditions(tables, func(t *Table, conditions map[string][]string) (rows Rows, err error) {
-		var tx *gosql.Tx
-		if tx, err = db.server.db.Begin(); err != nil {
-			return
-		}
-		defer func() {
-			if err2 := tx.Commit(); err2 != nil {
-				err = err2
-			}
-		}()
-		if err = db.lockTableRead(t.Name, tx); err != nil {
-			return
-		}
-		defer func() {
-			if err2 := db.unlockTables(tx); err2 != nil {
-				err = err2
-			}
-		}()
-		
-		sql := db.buildSelectRowsSQL(t.Name, conditions)
-		t.AppendDebugMsg(sql)
-		var qrows *gosql.Rows
-		if qrows, err = tx.Query(sql); err != nil {
-			return
-		}
-		defer qrows.Close()
-		
-		if rows, err = db.server.buildQueryRows(qrows); err != nil {
-			return
-		}
-		t.Rows = rows
-		return
-	})
 	return
 }
 
@@ -556,10 +561,10 @@ func (db *MySQL5Database) buildWhereIn(conditions map[string][]string) string {
 }
 
 // lockTableRead...
-func (db *MySQL5Database) lockTableRead(tableName string, tx *gosql.Tx) error {
+func (db *MySQL5Database) lockTableRead(tableName string) error {
 	if !db.server.args.SkipLockTables {
 		sql := fmt.Sprintf("LOCK TABLES %s READ LOCAL", MySQL5Backtick(tableName))
-		if _, err := tx.Exec(sql); err != nil {
+		if err := db.server.exec(sql); err != nil {
 			return err
 		}
 	}
@@ -567,9 +572,9 @@ func (db *MySQL5Database) lockTableRead(tableName string, tx *gosql.Tx) error {
 }
 
 // unlockTables...
-func (db *MySQL5Database) unlockTables(tx *gosql.Tx) error {
+func (db *MySQL5Database) unlockTables() error {
 	if !db.server.args.SkipLockTables {
-		if _, err := tx.Exec("UNLOCK TABLES"); err != nil {
+		if err := db.server.exec("UNLOCK TABLES"); err != nil {
 			return err
 		}
 	}
