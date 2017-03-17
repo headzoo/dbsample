@@ -5,6 +5,8 @@ import (
 	"github.com/howeyc/gopass"
 	"gopkg.in/alecthomas/kingpin.v2"
 	"strings"
+	"os"
+	"os/user"
 )
 
 const (
@@ -55,14 +57,19 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 	args := &DumpArgs{
 		Dependencies: map[string][]*Dependency{},
 	}
-
+	
+	for i, a := range os.Args {
+		if a == "-p" || a == "--password" {
+			os.Args[i] = "--password=\000"
+		}
+	}
+	
 	kingpin.Version(Version)
 	kingpin.Flag("host", "The database host.").Default("127.0.0.1").Short('h').StringVar(&conn.Host)
 	kingpin.Flag("port", "The database port.").Default("3306").Short('P').StringVar(&conn.Port)
 	kingpin.Flag("protocol", "The protocol to use for the connection (tcp, socket, pip, memory).").Default("tcp").StringVar(&conn.Protocol)
-	kingpin.Flag("user", "The database user.").Short('u').StringVar(&conn.User)
-	kingpin.Flag("pass", "The database password.").Short('p').StringVar(&conn.Pass)
-	prompt := kingpin.Flag("prompt", "Prompt for the database password.").Bool()
+	kingpin.Flag("user", "User for login if not current user.").Short('u').StringVar(&conn.User)
+	kingpin.Flag("password", "Password to use when connecting to server. If password is not given it's asked from stderr.").Short('p').StringVar(&conn.Pass)
 
 	kingpin.Flag("debug", "").Hidden().BoolVar(&IsDebugging)
 	kingpin.Flag("routines", "Dump procedures and functions.").BoolVar(&args.Routines)
@@ -76,11 +83,19 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 	fks := kingpin.Flag("foreign-key", "Assigns one or more mock foreign keys.").Short('f').Strings()
 	kingpin.Arg("database", "Name of the database to dump.").Required().StringVar(&conn.Name)
 	kingpin.Parse()
-
-	if *prompt {
-		fmt.Print("Enter password: ")
-		pass, _ := gopass.GetPasswd()
+	
+	if conn.User == "" {
+		u, err := user.Current()
+		if err != nil {
+			return nil, nil, err
+		}
+		conn.User = u.Username
+	}
+	if conn.Pass == "\000" {
+		pass, _ := gopass.GetPasswdPrompt("Enter password: ", false, os.Stdin, os.Stderr)
 		conn.Pass = string(pass)
+	} else {
+		warning("Warning: Using a password on the command line interface can be insecure.")
 	}
 	
 	for _, fk := range *fks {

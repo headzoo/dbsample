@@ -20,9 +20,8 @@ Flags:
   -h, --host="127.0.0.1"      The database host.
   -P, --port="3306"           The database port.
       --protocol="tcp"        The protocol to use for the connection (tcp, socket, pip, memory).
-  -u, --user=USER             The database user.
-  -p, --pass=PASS             The database password.
-      --prompt                Prompt for the database password.
+  -u, --user=USER             User for login if not current user.
+  -p, --password=PASSWORD     Password to use when connecting to server. If password is not given it's asked from stderr.
       --routines              Dump procedures and functions.
       --triggers              Dump triggers.
   -l, --limit=100             Max number of rows from each table to dump.
