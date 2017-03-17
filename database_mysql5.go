@@ -329,6 +329,9 @@ func (db *MySQL5Database) setTableDependencies(table *Table) (err error) {
 	if err = rows.Err(); err != nil {
 		return
 	}
+	if _, ok := db.server.args.Dependencies[table.Name]; ok {
+		table.Dependencies = append(table.Dependencies, db.server.args.Dependencies[table.Name]...)
+	}
 	return
 }
 

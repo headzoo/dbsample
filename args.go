@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/howeyc/gopass"
 	"gopkg.in/alecthomas/kingpin.v2"
+	"strings"
 )
 
 const (
@@ -43,6 +44,7 @@ type DumpArgs struct {
 	SkipLockTables     bool
 	SkipAddDropTable   bool
 	ExtendedInsert     bool
+	Dependencies       map[string][]*Dependency
 }
 
 // ParseFlags parses the command line flags.
@@ -50,7 +52,9 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 	conn := &ConnectionArgs{
 		Driver: DriverMySQL,
 	}
-	args := &DumpArgs{}
+	args := &DumpArgs{
+		Dependencies: map[string][]*Dependency{},
+	}
 
 	kingpin.Version(Version)
 	kingpin.Flag("host", "The database host.").Default("127.0.0.1").Short('h').StringVar(&conn.Host)
@@ -69,6 +73,7 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 	kingpin.Flag("skip-add-drop-table", "Disable adding DROP TABLE statements.").BoolVar(&args.SkipAddDropTable)
 	kingpin.Flag("extended-insert", "Use multiple-row INSERT syntax that include several VALUES lists.").BoolVar(&args.ExtendedInsert)
 	kingpin.Flag("rename-database", "Use this database name in the dump.").PlaceHolder("DUMP-NAME").StringVar(&args.RenameDatabase)
+	fks := kingpin.Flag("foreign-key", "Assigns one or more mock foreign keys.").Short('f').Strings()
 	kingpin.Arg("database", "Name of the database to dump.").Required().StringVar(&conn.Name)
 	kingpin.Parse()
 
@@ -76,6 +81,34 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 		fmt.Print("Enter password: ")
 		pass, _ := gopass.GetPasswd()
 		conn.Pass = string(pass)
+	}
+	
+	for _, fk := range *fks {
+		halves := strings.Split(fk, " ")
+		if len(halves) != 2 {
+			return nil, nil, fmt.Errorf("Invalid foreign key specification %s", fk)
+		}
+		parts := strings.Split(halves[0], ".")
+		if len(parts) != 2 {
+			return nil, nil, fmt.Errorf("Invalid foreign key specification %s", fk)
+		}
+		table := parts[0]
+		refCol := parts[1]
+		parts = strings.Split(halves[1], ".")
+		if len(parts) != 2 {
+			return nil, nil, fmt.Errorf("Invalid foreign key specification %s", fk)
+		}
+		tblName := parts[0]
+		colName := parts[1]
+		
+		if _, ok := args.Dependencies[table]; !ok {
+			args.Dependencies[table] = []*Dependency{}
+		}
+		args.Dependencies[table] = append(args.Dependencies[table], &Dependency{
+			TableName: tblName,
+			ColumnName: colName,
+			ReferencedColumnName: refCol,
+		})
 	}
 
 	return conn, args, nil

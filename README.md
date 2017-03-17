@@ -32,6 +32,8 @@ Flags:
       --extended-insert       Use multiple-row INSERT syntax that include several VALUES lists.
       --rename-database=DUMP-NAME  
                               Use this database name in the dump.
+  -f, --foreign-key=FOREIGN-KEY ...  
+                              Assigns one or more mock foreign keys.
 
 Args:
   <database>  Name of the database to dump.
