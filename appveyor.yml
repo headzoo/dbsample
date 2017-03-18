@@ -20,6 +20,9 @@ build_script:
   - set MYAPP=dbsample
   - set GOARCH=386
   - go get ./...
+  - echo %MYAPP%
+  - echo %GOARCH%
+  - echo %APPVEYOR_REPO_TAG_NAME%
   - go build -o %MYAPP%.exe --ldflags "-X main.VERSION=%APPVEYOR_REPO_TAG_NAME%" cli\main.go
   - go-msi.exe make --msi %APPVEYOR_BUILD_FOLDER%\%MYAPP%-%GOARCH%.msi --version %APPVEYOR_REPO_TAG_NAME% --arch %GOARCH%
   - set GOARCH=amd64
