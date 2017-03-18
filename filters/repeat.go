@@ -30,5 +30,5 @@ func (f *RepeatFilter) ValidateArgs(args []string) error {
 
 // Usage...
 func (f *RepeatFilter) Usage() string {
-	return `repeat users.password <string>`
+	return `repeat table.column <string-to-repeat>`
 }

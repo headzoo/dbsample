@@ -27,5 +27,5 @@ func (f *EmptyFilter) ValidateArgs(args []string) error {
 
 // Usage...
 func (f *EmptyFilter) Usage() string {
-	return `empty users.password`
+	return `empty table.column`
 }

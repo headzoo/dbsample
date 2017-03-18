@@ -203,6 +203,11 @@ Commands:
 
 var argsUsageDBSample = `
 Filters:
+Filters alter column values in the dump. For example they can remove passwords or
+other sensitive information. Each --filter flag should be passed the name of the
+filter, e.g. "empty", the name of a table.column, e.g. "users.passwords", and one
+or more arguments.
+
 {{range .FilterUsages}}  {{.}}
 {{end}}
 
@@ -210,5 +215,6 @@ Examples:
 dbsample --limit=100 blog > dump.sql
 dbsample --limit=100 -h db1 -u admin -p blog > dump.sql
 dbsample --limit=100 --rename-database=blog_dev blog > dump.sql
+dbsample --limit=100 --filter="empty users.password" --filter="repeat users.email X" blog > dump.sql
 dbsample --limit=100 -c "posts.user_id users.id" -c "posts.cat_id categories.id" blog > dump.sql
 `
