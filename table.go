@@ -20,10 +20,11 @@ type Field struct {
 
 // Column...
 type Column struct {
-	Name            string
-	OrdinalPosition int
-	Type            string
-	DataType        string
+	Name                   string
+	OrdinalPosition        int
+	Type                   string
+	CharacterMaximumLength int64
+	DataType               string
 }
 
 // Trigger...

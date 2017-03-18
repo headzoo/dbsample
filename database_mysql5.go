@@ -178,6 +178,9 @@ func (db *MySQL5Database) Tables() (tables TableGraph, err error) {
 	if err = resolveTableRows(tables, db.queryTableRows); err != nil {
 		return
 	}
+	if err = db.applyFilters(tables); err != nil {
+		return
+	}
 	if db.server.args.Triggers {
 		for _, table := range tables {
 			if err = db.setTableTriggers(table); err != nil {
@@ -508,7 +511,11 @@ func (db *MySQL5Database) setTriggerCreateSQL(t *Trigger) (err error) {
 func (db *MySQL5Database) tableColumns(tableName string) (cols ColumnMap, err error) {
 	mysql5Stmts.Prepare(
 		"tableColumns",
-		"SELECT `COLUMN_NAME`, `ORDINAL_POSITION`, `COLUMN_TYPE`, `DATA_TYPE` "+
+		"SELECT `COLUMN_NAME`, "+
+			"`ORDINAL_POSITION`, "+
+			"`COLUMN_TYPE`, "+
+			"`DATA_TYPE`, "+
+			"`CHARACTER_MAXIMUM_LENGTH` "+
 			"FROM `INFORMATION_SCHEMA`.`COLUMNS` "+
 			"WHERE `TABLE_SCHEMA` = ? "+
 			"AND `TABLE_NAME` = ?",
@@ -522,13 +529,40 @@ func (db *MySQL5Database) tableColumns(tableName string) (cols ColumnMap, err er
 	cols = ColumnMap{}
 	for rows.Next() {
 		col := &Column{}
-		if err = rows.Scan(&col.Name, &col.OrdinalPosition, &col.Type, &col.DataType); err != nil {
+		ml := gosql.NullInt64{}
+		if err = rows.Scan(
+			&col.Name,
+			&col.OrdinalPosition,
+			&col.Type,
+			&col.DataType,
+			&ml); err != nil {
 			return
 		}
+		col.CharacterMaximumLength = ml.Int64
 		cols[col.Name] = col
 	}
 	if err = rows.Err(); err != nil {
 		return
+	}
+	return
+}
+
+// applyFilters...
+func (db *MySQL5Database) applyFilters(tables TableGraph) (err error) {
+	for _, table := range tables {
+		for _, row := range table.Rows {
+			for i, field := range row {
+				col := table.Columns[field.Column]
+				if err = Filters.Filter(
+					&row[i].Value,
+					table.Name,
+					field.Column,
+					col.DataType,
+					col.CharacterMaximumLength); err != nil {
+					return
+				}
+			}
+		}
 	}
 	return
 }

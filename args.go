@@ -1,12 +1,15 @@
 package dbsample
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/howeyc/gopass"
 	"gopkg.in/alecthomas/kingpin.v2"
 	"os"
 	"os/user"
 	"regexp"
+	"strings"
+	"text/template"
 )
 
 const (
@@ -46,25 +49,27 @@ type DumpArgs struct {
 	SkipLockTables   bool
 	SkipAddDropTable bool
 	ExtendedInsert   bool
+	Filters          []string
 	Constraints      map[string][]*Constraint
 }
 
 // ParseFlags parses the command line flags.
 func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
+	if err := argsSetupUsageTemplate(); err != nil {
+		return nil, nil, err
+	}
 	conn := &ConnectionArgs{
 		Driver: DriverMySQL,
 	}
 	args := &DumpArgs{
 		Constraints: map[string][]*Constraint{},
 	}
-
 	for i, a := range os.Args {
 		if a == "-p" || a == "--password" {
 			os.Args[i] = "--password=\000"
 		}
 	}
 
-	kingpin.UsageTemplate(argsHelpTemplate)
 	kingpin.Version(Version)
 	kingpin.Flag("host", "The database host.").Default("127.0.0.1").Short('h').StringVar(&conn.Host)
 	kingpin.Flag("port", "The database port.").Default("3306").Short('P').StringVar(&conn.Port)
@@ -81,6 +86,7 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 	kingpin.Flag("extended-insert", "Use multiple-row INSERT syntax that include several VALUES lists.").BoolVar(&args.ExtendedInsert)
 	kingpin.Flag("rename-database", "Use this database name in the dump.").PlaceHolder("DUMP-NAME").StringVar(&args.RenameDatabase)
 	fks := kingpin.Flag("constraint", "Assigns one or more foreign key constraints.").Short('c').Strings()
+	kingpin.Flag("filter", "Apply a filter to the output.").Short('f').StringsVar(&args.Filters)
 	kingpin.Arg("database", "Name of the database to dump.").Required().StringVar(&conn.Name)
 	kingpin.Parse()
 
@@ -113,11 +119,41 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 			ReferencedColumnName: m[2],
 		})
 	}
+	if err := Filters.SetCommands(args.Filters); err != nil {
+		return nil, nil, err
+	}
 
 	return conn, args, nil
 }
 
-var argsHelpTemplate = `{{define "FormatCommand"}}\
+// argsSetupUsage...
+func argsSetupUsageTemplate() error {
+	t, err := template.New("dbsample").Parse(argsUsageDBSample)
+	if err != nil {
+		return err
+	}
+
+	ctx := argsUsageTemplateContext{
+		FilterUsages: []string{},
+	}
+	for _, f := range Filters.Usage() {
+		ctx.FilterUsages = append(ctx.FilterUsages, fmt.Sprintf(`--filter="%s"`, f))
+	}
+
+	buff := &bytes.Buffer{}
+	if err := t.Execute(buff, ctx); err != nil {
+		return err
+	}
+	usage := strings.Replace(argsUsageTemplate, "{{dbsample}}", buff.String(), 1)
+	kingpin.UsageTemplate(usage)
+	return nil
+}
+
+type argsUsageTemplateContext struct {
+	FilterUsages []string
+}
+
+var argsUsageTemplate = `{{define "FormatCommand"}}\
 {{if .FlagSummary}} {{.FlagSummary}}{{end}}\
 {{range .Args}} {{if not .Required}}[{{end}}<{{.Name}}>{{if .Value|IsCumulative}}...{{end}}{{if not .Required}}]{{end}}{{end}}\
 {{end}}\
@@ -161,6 +197,14 @@ Subcommands:
 Commands:
 {{template "FormatCommands" .App}}
 {{end}}\
+
+{{dbsample}}
+`
+
+var argsUsageDBSample = `
+Filters:
+{{range .FilterUsages}}  {{.}}
+{{end}}
 
 Examples:
 dbsample --limit=100 blog > dump.sql

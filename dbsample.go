@@ -3,6 +3,7 @@ package dbsample
 import (
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/headzoo/dbsample/filters"
 	"os"
 	"strings"
 )
@@ -14,6 +15,7 @@ const (
 
 var IsDebugBuild = false
 var IsDebugging = false
+var Filters = filters.NewFilterController()
 
 // init...
 func init() {
@@ -34,6 +36,9 @@ func warning(str string, v ...interface{}) {
 
 // Dump...
 func Dump() error {
+	if err := Filters.Load(); err != nil {
+		return err
+	}
 	conn, args, err := ParseFlags()
 	if err != nil {
 		return err
