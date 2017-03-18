@@ -1,4 +1,4 @@
-package dbsampler
+package dbsample
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	Name    = "DBSampler"
+	Name    = "DBSample"
 	Version = "0.1"
 )
 

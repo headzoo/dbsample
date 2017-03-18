@@ -1,9 +1,9 @@
-package dbsampler
+package dbsample
 
 import (
 	"bytes"
 	"fmt"
-	"github.com/headzoo/dbsampler/templates"
+	"github.com/headzoo/dbsample/templates"
 	"io"
 	"io/ioutil"
 	"path"

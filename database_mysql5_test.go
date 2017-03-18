@@ -1,4 +1,4 @@
-package dbsampler
+package dbsample
 
 import "testing"
 

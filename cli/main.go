@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/headzoo/dbsampler"
 	"os"
+	"github.com/headzoo/dbsample"
 )
 
 func main() {
-	if err := dbsampler.Dump(); err != nil {
+	if err := dbsample.Dump(); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}

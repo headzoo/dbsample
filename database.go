@@ -1,4 +1,4 @@
-package dbsampler
+package dbsample
 
 // Database queries a database.
 type Database interface {

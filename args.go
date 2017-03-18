@@ -1,4 +1,4 @@
-package dbsampler
+package dbsample
 
 import (
 	"fmt"
@@ -163,8 +163,8 @@ Commands:
 {{end}}\
 
 Examples:
-dbsampler --limit=100 blog > dump.sql
-dbsampler --limit=100 -h db1 -u admin -p blog > dump.sql
-dbsampler --limit=100 --rename-database=blog_dev blog > dump.sql
-dbsampler --limit=100 -c "posts.user_id users.id" -c "posts.cat_id categories.id" blog > dump.sql
+dbsample --limit=100 blog > dump.sql
+dbsample --limit=100 -h db1 -u admin -p blog > dump.sql
+dbsample --limit=100 --rename-database=blog_dev blog > dump.sql
+dbsample --limit=100 -c "posts.user_id users.id" -c "posts.cat_id categories.id" blog > dump.sql
 `
