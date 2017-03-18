@@ -36,9 +36,14 @@ Flags:
                              Use this database name in the dump.
   -c, --constraint=CONSTRAINT ...  
                              Assigns one or more foreign key constraints.
+  -f, --filter=FILTER ...    Apply a filter to the output.
 
 Args:
   <database>  Name of the database to dump.
+
+Filters:
+  --filter="empty users.password"
+  --filter="repeat users.password <string>"
 
 Examples:
 dbsample --limit=100 blog > dump.sql
