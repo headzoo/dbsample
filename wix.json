@@ -1,0 +1,27 @@
+{
+  "product": "dbsample",
+  "company": "headzoo",
+  "license": "LICENSE",
+  "upgrade-code": "65234e71-f01a-4923-9dde-a4f0bc58bd4c",
+  "files": {
+    "guid": "f16232f4-6106-49aa-9464-adc7beb27b4f",
+    "items": [
+      "dbsample.exe"
+    ]
+  },
+  "env": {
+    "guid": "2d65978d-3659-4efc-867b-a33f5dc36b76",
+    "vars": [
+      {
+        "name": "PATH",
+        "value": "[INSTALLDIR]",
+        "permanent": "no",
+        "system": "no",
+        "action": "set",
+        "part": "last"
+      }
+    ]
+  },
+  "shortcuts": {},
+  "choco": {}
+}
