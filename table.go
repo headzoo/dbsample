@@ -68,25 +68,25 @@ type View struct {
 
 // Table stores the details of a single database table.
 type Table struct {
-	Name         string
-	CreateSQL    string
-	CharSet      string
-	Collation    string
-	DebugMsgs    []string
-	Columns      ColumnMap
-	Constraints  []*Constraint
-	Triggers     TriggerGraph
-	Rows         Rows
+	Name        string
+	CreateSQL   string
+	CharSet     string
+	Collation   string
+	DebugMsgs   []string
+	Columns     ColumnMap
+	Constraints []*Constraint
+	Triggers    TriggerGraph
+	Rows        Rows
 }
 
 // NewTable returns a new *Table instance.
 func NewTable() *Table {
 	return &Table{
-		DebugMsgs:    []string{},
-		Columns:      ColumnMap{},
+		DebugMsgs:   []string{},
+		Columns:     ColumnMap{},
 		Constraints: []*Constraint{},
-		Triggers:     TriggerGraph{},
-		Rows:         Rows{},
+		Triggers:    TriggerGraph{},
+		Rows:        Rows{},
 	}
 }
 

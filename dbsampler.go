@@ -1,10 +1,10 @@
 package dbsampler
 
 import (
+	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"os"
 	"strings"
-	"github.com/davecgh/go-spew/spew"
-	"fmt"
 )
 
 const (

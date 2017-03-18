@@ -137,7 +137,7 @@ func (s *Server) buildQueryRows(rows *gosql.Rows) (results Rows, err error) {
 		for i, c := range columns {
 			fields[i] = Field{
 				Column: c,
-				Value: strValues[i],
+				Value:  strValues[i],
 			}
 		}
 		results = append(results, fields)

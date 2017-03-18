@@ -4,9 +4,9 @@ import (
 	"bytes"
 	gosql "database/sql"
 	"fmt"
+	"github.com/deckarep/golang-set"
 	"regexp"
 	"strings"
-	"github.com/deckarep/golang-set"
 )
 
 var mysql5RegexpAI = regexp.MustCompile(`AUTO_INCREMENT=[\d]+ `)
@@ -139,9 +139,9 @@ func (db *MySQL5Database) Tables() (tables TableGraph, err error) {
 	mysql5Stmts.Prepare(
 		"Tables",
 		"SELECT `TABLE_NAME`, `TABLE_COLLATION` "+
-		"FROM `INFORMATION_SCHEMA`.`TABLES` "+
-		"WHERE `TABLE_SCHEMA` = ? "+
-		"AND `TABLE_TYPE` = 'BASE TABLE'",
+			"FROM `INFORMATION_SCHEMA`.`TABLES` "+
+			"WHERE `TABLE_SCHEMA` = ? "+
+			"AND `TABLE_TYPE` = 'BASE TABLE'",
 	)
 	var rows *gosql.Rows
 	if rows, err = mysql5Stmts.Query("Tables", db.Name()); err != nil {
@@ -193,9 +193,9 @@ func (db *MySQL5Database) Views() (views ViewGraph, err error) {
 	mysql5Stmts.Prepare(
 		"Views",
 		"SELECT `TABLE_NAME` "+
-		"FROM `INFORMATION_SCHEMA`.`TABLES` "+
-		"WHERE `TABLE_SCHEMA` = ? "+
-		"AND `TABLE_TYPE` = 'VIEW'",
+			"FROM `INFORMATION_SCHEMA`.`TABLES` "+
+			"WHERE `TABLE_SCHEMA` = ? "+
+			"AND `TABLE_TYPE` = 'VIEW'",
 	)
 	var rows *gosql.Rows
 	if rows, err = mysql5Stmts.Query("Views", db.Name()); err != nil {
@@ -271,7 +271,7 @@ func (db *MySQL5Database) queryTableRows(table *Table, fks map[string]mapset.Set
 		}
 		where = fmt.Sprintf("WHERE %s", strings.Join(wheres, " AND "))
 	}
-	
+
 	if err = db.lockTableRead(table.Name); err != nil {
 		return
 	}
@@ -395,10 +395,10 @@ func (db *MySQL5Database) setViewCreateSQL(view *View) (err error) {
 	mysql5Stmts.Prepare(
 		"setViewCreateSQL",
 		"SELECT `VIEW_DEFINITION`, `DEFINER`, `SECURITY_TYPE`, `CHARACTER_SET_CLIENT`, `COLLATION_CONNECTION`"+
-		"FROM `INFORMATION_SCHEMA`.`VIEWS` "+
-		"WHERE `TABLE_SCHEMA` = ? "+
-		"AND `TABLE_NAME` = ? "+
-		"LIMIT 1",
+			"FROM `INFORMATION_SCHEMA`.`VIEWS` "+
+			"WHERE `TABLE_SCHEMA` = ? "+
+			"AND `TABLE_NAME` = ? "+
+			"LIMIT 1",
 	)
 	var rows *gosql.Rows
 	if rows, err = mysql5Stmts.Query("setViewCreateSQL", db.Name(), view.Name); err != nil {
@@ -431,10 +431,10 @@ func (db *MySQL5Database) setRoutineCreateSQL(r *Routine) (err error) {
 	mysql5Stmts.Prepare(
 		"setRoutineCreateSQL",
 		"SELECT `type`, `body_utf8`, `security_type`, `definer`, `param_list`, `returns`, `is_deterministic`, `sql_mode` "+
-		"FROM `mysql`.`proc` "+
-		"WHERE `name` = ? "+
-		"AND `db` = ? "+
-		"LIMIT 1",
+			"FROM `mysql`.`proc` "+
+			"WHERE `name` = ? "+
+			"AND `db` = ? "+
+			"LIMIT 1",
 	)
 	var rows *gosql.Rows
 	if rows, err = mysql5Stmts.Query("setRoutineCreateSQL", r.Name, db.Name()); err != nil {
@@ -461,19 +461,19 @@ func (db *MySQL5Database) setTriggerCreateSQL(t *Trigger) (err error) {
 	mysql5Stmts.Prepare(
 		"setTriggerCreateSQL",
 		"SELECT "+
-		"`ACTION_STATEMENT`, "+
-		"`ACTION_TIMING`, "+
-		"`EVENT_MANIPULATION`, "+
-		"`EVENT_OBJECT_TABLE`, "+
-		"`ACTION_ORIENTATION`, "+
-		"`DEFINER`, "+
-		"`SQL_MODE`, "+
-		"`CHARACTER_SET_CLIENT`, "+
-		"`COLLATION_CONNECTION`"+
-		"FROM `INFORMATION_SCHEMA`.`TRIGGERS` "+
-		"WHERE `TRIGGER_SCHEMA` = ? "+
-		"AND `TRIGGER_NAME` = ? "+
-		"LIMIT 1",
+			"`ACTION_STATEMENT`, "+
+			"`ACTION_TIMING`, "+
+			"`EVENT_MANIPULATION`, "+
+			"`EVENT_OBJECT_TABLE`, "+
+			"`ACTION_ORIENTATION`, "+
+			"`DEFINER`, "+
+			"`SQL_MODE`, "+
+			"`CHARACTER_SET_CLIENT`, "+
+			"`COLLATION_CONNECTION`"+
+			"FROM `INFORMATION_SCHEMA`.`TRIGGERS` "+
+			"WHERE `TRIGGER_SCHEMA` = ? "+
+			"AND `TRIGGER_NAME` = ? "+
+			"LIMIT 1",
 	)
 	var rows *gosql.Rows
 	if rows, err = mysql5Stmts.Query("setTriggerCreateSQL", db.Name(), t.Name); err != nil {
@@ -509,9 +509,9 @@ func (db *MySQL5Database) tableColumns(tableName string) (cols ColumnMap, err er
 	mysql5Stmts.Prepare(
 		"tableColumns",
 		"SELECT `COLUMN_NAME`, `ORDINAL_POSITION`, `COLUMN_TYPE`, `DATA_TYPE` "+
-		"FROM `INFORMATION_SCHEMA`.`COLUMNS` "+
-		"WHERE `TABLE_SCHEMA` = ? "+
-		"AND `TABLE_NAME` = ?",
+			"FROM `INFORMATION_SCHEMA`.`COLUMNS` "+
+			"WHERE `TABLE_SCHEMA` = ? "+
+			"AND `TABLE_NAME` = ?",
 	)
 	var rows *gosql.Rows
 	if rows, err = mysql5Stmts.Query("tableColumns", db.Name(), tableName); err != nil {

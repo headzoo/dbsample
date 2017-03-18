@@ -7,10 +7,10 @@ import (
 	"io"
 	"io/ioutil"
 	"path"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
-	"regexp"
 )
 
 const MySQL5DumperTemplatesPath = "./templates/mysql"
@@ -19,26 +19,26 @@ var dbname = regexp.MustCompile("CREATE DATABASE `[^`]+`")
 
 // MySQL5DumperTemplateValues...
 type MySQL5DumperTemplateValues struct {
-	ShouldDumpDatabase bool
-	ShouldDumpTables   bool
-	ShouldDumpViews    bool
-	ShouldDumpRoutines bool
-	ShouldDumpTriggers bool
-	Debug              bool
-	AppName            string
-	AppVersion         string
-	DumpDate           string
-	DumpDuration       string
-	CharSet            string
-	Collation          string
+	ShouldDumpDatabase   bool
+	ShouldDumpTables     bool
+	ShouldDumpViews      bool
+	ShouldDumpRoutines   bool
+	ShouldDumpTriggers   bool
+	Debug                bool
+	AppName              string
+	AppVersion           string
+	DumpDate             string
+	DumpDuration         string
+	CharSet              string
+	Collation            string
 	OriginalDatabaseName string
-	Database           Database
-	Args               *DumpArgs
-	Connection         *ConnectionArgs
-	Server             *Server
-	Tables             TableGraph
-	Views              ViewGraph
-	Routines           RoutineGraph
+	Database             Database
+	Args                 *DumpArgs
+	Connection           *ConnectionArgs
+	Server               *Server
+	Tables               TableGraph
+	Views                ViewGraph
+	Routines             RoutineGraph
 }
 
 // MySQL5Dumper...
@@ -71,7 +71,7 @@ func (g *MySQL5Dumper) Dump(w io.Writer, db Database) error {
 	if err != nil {
 		return err
 	}
-	
+
 	origDatabaseName := db.Name()
 	if g.args.RenameDatabase != "" {
 		sql, err := db.CreateSQL()
@@ -85,31 +85,31 @@ func (g *MySQL5Dumper) Dump(w io.Writer, db Database) error {
 		db.SetCreateSQL(sql)
 		db.SetName(g.args.RenameDatabase)
 	}
-	
+
 	if err := g.parseTemplates(); err != nil {
 		return err
 	}
 	vals := MySQL5DumperTemplateValues{
-		ShouldDumpDatabase: !g.args.NoCreateDatabase,
-		ShouldDumpTables:   true,
-		ShouldDumpViews:    false,
-		ShouldDumpRoutines: g.args.Routines,
-		ShouldDumpTriggers: g.args.Triggers,
-		Debug:              IsDebugging,
-		AppName:            Name,
-		AppVersion:         Version,
-		Database:           db,
+		ShouldDumpDatabase:   !g.args.NoCreateDatabase,
+		ShouldDumpTables:     true,
+		ShouldDumpViews:      false,
+		ShouldDumpRoutines:   g.args.Routines,
+		ShouldDumpTriggers:   g.args.Triggers,
+		Debug:                IsDebugging,
+		AppName:              Name,
+		AppVersion:           Version,
+		Database:             db,
 		OriginalDatabaseName: origDatabaseName,
-		Args:               g.args,
-		CharSet:            db.CharSet(),
-		Collation:          db.Collation(),
-		DumpDate:           time.Now().Format("2006-01-02 15:04:05"),
-		DumpDuration:       fmt.Sprintf("%s", time.Since(start)),
-		Connection:         db.Server().conn,
-		Server:             db.Server(),
-		Tables:             tables,
-		Views:              views,
-		Routines:           routines,
+		Args:                 g.args,
+		CharSet:              db.CharSet(),
+		Collation:            db.Collation(),
+		DumpDate:             time.Now().Format("2006-01-02 15:04:05"),
+		DumpDuration:         fmt.Sprintf("%s", time.Since(start)),
+		Connection:           db.Server().conn,
+		Server:               db.Server(),
+		Tables:               tables,
+		Views:                views,
+		Routines:             routines,
 	}
 	if err := g.templates.ExecuteTemplate(w, "templates/mysql/dump.sql.tmpl", vals); err != nil {
 		return err
@@ -147,7 +147,7 @@ func (g *MySQL5Dumper) parseTemplates() error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 

@@ -38,15 +38,15 @@ func (c *ConnectionArgs) dsn() string {
 
 // DumpArgs...
 type DumpArgs struct {
-	Limit              int
-	Routines           bool
-	Triggers           bool
-	RenameDatabase     string
-	NoCreateDatabase   bool
-	SkipLockTables     bool
-	SkipAddDropTable   bool
-	ExtendedInsert     bool
-	Constraints        map[string][]*Constraint
+	Limit            int
+	Routines         bool
+	Triggers         bool
+	RenameDatabase   string
+	NoCreateDatabase bool
+	SkipLockTables   bool
+	SkipAddDropTable bool
+	ExtendedInsert   bool
+	Constraints      map[string][]*Constraint
 }
 
 // ParseFlags parses the command line flags.
@@ -57,20 +57,19 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 	args := &DumpArgs{
 		Constraints: map[string][]*Constraint{},
 	}
-	
+
 	for i, a := range os.Args {
 		if a == "-p" || a == "--password" {
 			os.Args[i] = "--password=\000"
 		}
 	}
-	
+
 	kingpin.Version(Version)
 	kingpin.Flag("host", "The database host.").Default("127.0.0.1").Short('h').StringVar(&conn.Host)
 	kingpin.Flag("port", "The database port.").Default("3306").Short('P').StringVar(&conn.Port)
 	kingpin.Flag("protocol", "The protocol to use for the connection (tcp, socket, pip, memory).").Default("tcp").StringVar(&conn.Protocol)
 	kingpin.Flag("user", "User for login if not current user.").Short('u').StringVar(&conn.User)
 	kingpin.Flag("password", "Password to use when connecting to server. If password is not given it's asked from stderr.").Short('p').StringVar(&conn.Pass)
-
 	kingpin.Flag("debug", "").Hidden().BoolVar(&IsDebugging)
 	kingpin.Flag("routines", "Dump procedures and functions.").BoolVar(&args.Routines)
 	kingpin.Flag("triggers", "Dump triggers.").BoolVar(&args.Triggers)
@@ -83,7 +82,7 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 	fks := kingpin.Flag("constraint", "Assigns one or more foreign key constraints.").Short('c').Strings()
 	kingpin.Arg("database", "Name of the database to dump.").Required().StringVar(&conn.Name)
 	kingpin.Parse()
-	
+
 	if conn.User == "" {
 		u, err := user.Current()
 		if err != nil {
@@ -108,11 +107,11 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 			args.Constraints[m[1]] = []*Constraint{}
 		}
 		args.Constraints[m[1]] = append(args.Constraints[m[1]], &Constraint{
-			TableName: m[3],
-			ColumnName: m[4],
+			TableName:            m[3],
+			ColumnName:           m[4],
 			ReferencedColumnName: m[2],
 		})
 	}
-	
+
 	return conn, args, nil
 }
