@@ -10,6 +10,9 @@ Random data generators are a common solution to the problem of creating small te
 
 Currently supports MySQL 5+. Other drivers and versions may be supported in the future.
 
+## Install
+A build for Linux is currently available on the [releases page](/releases).
+
 ## Usage
 ```
 usage: dbsample [<flags>] <database>
