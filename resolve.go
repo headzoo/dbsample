@@ -7,45 +7,45 @@ import (
 	"strings"
 )
 
-// resolveTableGraph resolves table dependencies.
-func resolveTableGraph(graph TableGraph) (TableGraph, error) {
+// resolveTableGraph resolves table constraints.
+func resolveTableConstraints(graph TableGraph) (TableGraph, error) {
 	tableNames := make(map[string]*Table)
-	tableDeps := make(map[string]mapset.Set)
+	tableFKs := make(map[string]mapset.Set)
 	for _, table := range graph {
-		depSet := mapset.NewSet()
-		for _, dep := range table.Dependencies {
-			depSet.Add(dep.TableName)
+		fkSet := mapset.NewSet()
+		for _, fk := range table.Constraints {
+			fkSet.Add(fk.TableName)
 		}
 		tableNames[table.Name] = table
-		tableDeps[table.Name] = depSet
+		tableFKs[table.Name] = fkSet
 	}
 
 	var resolved TableGraph
-	for len(tableDeps) != 0 {
+	for len(tableFKs) != 0 {
 		readySet := mapset.NewSet()
-		for tableName, deps := range tableDeps {
-			if deps.Cardinality() == 0 {
+		for tableName, fks := range tableFKs {
+			if fks.Cardinality() == 0 {
 				readySet.Add(tableName)
 			}
 		}
 		if readySet.Cardinality() == 0 {
 			s := []string{}
-			for tableName, deps := range tableDeps {
+			for tableName, fks := range tableFKs {
 				f := []string{}
-				for d := range deps.Iter() {
-					f = append(f, d.(string))
+				for fk := range fks.Iter() {
+					f = append(f, fk.(string))
 				}
 				s = append(s, fmt.Sprintf("`%s` = %s", tableName, strings.Join(f, ", ")))
 			}
 			return resolved, fmt.Errorf("Circular dependency found -> %s", strings.Join(s, ", "))
 		}
 		for tableName := range readySet.Iter() {
-			delete(tableDeps, tableName.(string))
+			delete(tableFKs, tableName.(string))
 			resolved = append(resolved, tableNames[tableName.(string)])
 		}
-		for tableName, deps := range tableDeps {
-			diff := deps.Difference(readySet)
-			tableDeps[tableName] = diff
+		for tableName, fks := range tableFKs {
+			diff := fks.Difference(readySet)
+			tableFKs[tableName] = diff
 		}
 	}
 
@@ -56,15 +56,15 @@ type resolveTableRowsFunc func(table *Table, cond map[string]mapset.Set) (Rows, 
 
 // resolveTableRows...
 func resolveTableRows(tables TableGraph, fn resolveTableRowsFunc) (err error) {
-	depRows := make(map[string]map[string]mapset.Set)
+	fkRows := make(map[string]map[string]mapset.Set)
 	skipTables := make(map[string]bool)
 	for _, table := range tables {
 		skip := false
 		if _, ok := skipTables[table.Name]; ok {
 			continue
 		}
-		for _, dep := range table.Dependencies {
-			if _, ok := skipTables[dep.TableName]; ok {
+		for _, fk := range table.Constraints {
+			if _, ok := skipTables[fk.TableName]; ok {
 				skip = true
 			}
 		}
@@ -73,8 +73,8 @@ func resolveTableRows(tables TableGraph, fn resolveTableRowsFunc) (err error) {
 		}
 
 		cond := map[string]mapset.Set{}
-		if _, ok := depRows[table.Name]; ok {
-			cond = depRows[table.Name]
+		if _, ok := fkRows[table.Name]; ok {
+			cond = fkRows[table.Name]
 		}
 		if table.Rows, err = fn(table, cond); err != nil {
 			return
@@ -82,23 +82,23 @@ func resolveTableRows(tables TableGraph, fn resolveTableRowsFunc) (err error) {
 
 		// Should we save these rows because another table depends on them?
 		for _, t := range tables {
-			for _, dep := range t.Dependencies {
-				if dep.TableName == table.Name {
+			for _, fk := range t.Constraints {
+				if fk.TableName == table.Name {
 					if len(table.Rows) == 0 {
-						warning("Skipping `%s`, references empty table `%s`.", t.Name, dep.TableName)
+						warning("Skipping `%s`, references empty table `%s`.", t.Name, fk.TableName)
 						skipTables[t.Name] = true
 						continue
 					}
-					if _, ok := depRows[t.Name]; !ok {
-						depRows[t.Name] = make(map[string]mapset.Set)
+					if _, ok := fkRows[t.Name]; !ok {
+						fkRows[t.Name] = make(map[string]mapset.Set)
 					}
-					if _, ok := depRows[t.Name][dep.ReferencedColumnName]; !ok {
-						depRows[t.Name][dep.ReferencedColumnName] = mapset.NewSet()
+					if _, ok := fkRows[t.Name][fk.ReferencedColumnName]; !ok {
+						fkRows[t.Name][fk.ReferencedColumnName] = mapset.NewSet()
 					}
 					for _, row := range table.Rows {
 						for _, field := range row {
-							if field.Column == dep.ColumnName {
-								depRows[t.Name][dep.ReferencedColumnName].Add(field.Value)
+							if field.Column == fk.ColumnName {
+								fkRows[t.Name][fk.ReferencedColumnName].Add(field.Value)
 							}
 						}
 					}
@@ -120,19 +120,19 @@ func displayGraph(graph TableGraph) {
 	}
 	for _, table := range graph {
 		fmt.Fprintf(os.Stderr, "%s\n", table.Name)
-		displayDependencies(table.Dependencies, 1)
+		displayConstraints(table.Constraints, 1)
 		fmt.Fprint(os.Stderr, "\n")
 	}
 }
 
-// displayDependencies...
-func displayDependencies(deps []*Dependency, indent int) {
+// displayConstraints...
+func displayConstraints(fks []*Constraint, indent int) {
 	tabs := strings.Repeat("--", indent)
-	for _, dep := range deps {
-		fmt.Fprintf(os.Stderr, "%s %d. %s\n", tabs, indent, dep.TableName)
-		if len(displayTables[dep.TableName].Dependencies) > 0 {
+	for _, fk := range fks {
+		fmt.Fprintf(os.Stderr, "%s %d. %s\n", tabs, indent, fk.TableName)
+		if len(displayTables[fk.TableName].Constraints) > 0 {
 			indent++
-			displayDependencies(displayTables[dep.TableName].Dependencies, indent)
+			displayConstraints(displayTables[fk.TableName].Constraints, indent)
 			indent--
 		}
 	}

@@ -42,11 +42,11 @@ type DumpArgs struct {
 	Routines           bool
 	Triggers           bool
 	RenameDatabase     string
-	SkipCreateDatabase bool
+	NoCreateDatabase   bool
 	SkipLockTables     bool
 	SkipAddDropTable   bool
 	ExtendedInsert     bool
-	Dependencies       map[string][]*Dependency
+	Constraints        map[string][]*Constraint
 }
 
 // ParseFlags parses the command line flags.
@@ -55,7 +55,7 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 		Driver: DriverMySQL,
 	}
 	args := &DumpArgs{
-		Dependencies: map[string][]*Dependency{},
+		Constraints: map[string][]*Constraint{},
 	}
 	
 	for i, a := range os.Args {
@@ -75,12 +75,12 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 	kingpin.Flag("routines", "Dump procedures and functions.").BoolVar(&args.Routines)
 	kingpin.Flag("triggers", "Dump triggers.").BoolVar(&args.Triggers)
 	kingpin.Flag("limit", "Max number of rows from each table to dump.").Default("100").Short('l').IntVar(&args.Limit)
-	kingpin.Flag("skip-create-database", "Disable adding CREATE DATABASE statement.").BoolVar(&args.SkipCreateDatabase)
+	kingpin.Flag("no-create-database", "Disable adding CREATE DATABASE statement.").Short('n').BoolVar(&args.NoCreateDatabase)
 	kingpin.Flag("skip-lock-tables", "Disable locking tables on read.").BoolVar(&args.SkipLockTables)
 	kingpin.Flag("skip-add-drop-table", "Disable adding DROP TABLE statements.").BoolVar(&args.SkipAddDropTable)
 	kingpin.Flag("extended-insert", "Use multiple-row INSERT syntax that include several VALUES lists.").BoolVar(&args.ExtendedInsert)
 	kingpin.Flag("rename-database", "Use this database name in the dump.").PlaceHolder("DUMP-NAME").StringVar(&args.RenameDatabase)
-	fks := kingpin.Flag("foreign-key", "Assigns one or more mock foreign keys.").Short('f').Strings()
+	fks := kingpin.Flag("constraint", "Assigns one or more foreign key constraints.").Short('c').Strings()
 	kingpin.Arg("database", "Name of the database to dump.").Required().StringVar(&conn.Name)
 	kingpin.Parse()
 	
@@ -102,12 +102,12 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 	for _, fk := range *fks {
 		m := r.FindStringSubmatch(fk)
 		if len(m) != 5 {
-			return nil, nil, fmt.Errorf(`Invalid foreign key "%s". Must be "table.column references.column"`, fk)
+			return nil, nil, fmt.Errorf(`Invalid constraint "%s". Must be "table.column references.column"`, fk)
 		}
-		if _, ok := args.Dependencies[m[1]]; !ok {
-			args.Dependencies[m[1]] = []*Dependency{}
+		if _, ok := args.Constraints[m[1]]; !ok {
+			args.Constraints[m[1]] = []*Constraint{}
 		}
-		args.Dependencies[m[1]] = append(args.Dependencies[m[1]], &Dependency{
+		args.Constraints[m[1]] = append(args.Constraints[m[1]], &Constraint{
 			TableName: m[3],
 			ColumnName: m[4],
 			ReferencedColumnName: m[2],

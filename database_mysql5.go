@@ -155,7 +155,7 @@ func (db *MySQL5Database) Tables() (tables TableGraph, err error) {
 		if err = rows.Scan(&table.Name, &table.Collation); err != nil {
 			return
 		}
-		if err = db.setTableDependencies(table); err != nil {
+		if err = db.setTableConstraints(table); err != nil {
 			return
 		}
 		if err = db.setTableCreateSQL(table); err != nil {
@@ -172,7 +172,7 @@ func (db *MySQL5Database) Tables() (tables TableGraph, err error) {
 	if err = rows.Err(); err != nil {
 		return
 	}
-	if tables, err = resolveTableGraph(tables); err != nil {
+	if tables, err = resolveTableConstraints(tables); err != nil {
 		return
 	}
 	if err = resolveTableRows(tables, db.queryTableRows); err != nil {
@@ -258,11 +258,11 @@ func (db *MySQL5Database) Routines() (routines RoutineGraph, err error) {
 }
 
 // queryTableRows...
-func (db *MySQL5Database) queryTableRows(table *Table, deps map[string]mapset.Set) (rows Rows, err error) {
+func (db *MySQL5Database) queryTableRows(table *Table, fks map[string]mapset.Set) (rows Rows, err error) {
 	where := ""
-	if len(deps) > 0 {
+	if len(fks) > 0 {
 		wheres := []string{}
-		for col, set := range deps {
+		for col, set := range fks {
 			values := []string{}
 			for val := range set.Iter() {
 				values = append(values, val.(string))
@@ -298,10 +298,10 @@ func (db *MySQL5Database) queryTableRows(table *Table, deps map[string]mapset.Se
 	return
 }
 
-// setTableDependencies...
-func (db *MySQL5Database) setTableDependencies(table *Table) (err error) {
+// setTableConstraints...
+func (db *MySQL5Database) setTableConstraints(table *Table) (err error) {
 	mysql5Stmts.Prepare(
-		"setTableDependencies",
+		"setTableConstraints",
 		"SELECT "+
 			"`REFERENCED_TABLE_NAME`, "+
 			"`REFERENCED_COLUMN_NAME`, "+
@@ -312,25 +312,25 @@ func (db *MySQL5Database) setTableDependencies(table *Table) (err error) {
 			"AND `REFERENCED_TABLE_NAME` != ?",
 	)
 	var rows *gosql.Rows
-	if rows, err = mysql5Stmts.Query("setTableDependencies", db.name, table.Name, table.Name); err != nil {
+	if rows, err = mysql5Stmts.Query("setTableConstraints", db.name, table.Name, table.Name); err != nil {
 		return
 	}
 	defer rows.Close()
 
-	table.Dependencies = []*Dependency{}
+	table.Constraints = []*Constraint{}
 	for rows.Next() {
-		dep := &Dependency{}
-		if err = rows.Scan(&dep.TableName, &dep.ColumnName, &dep.ReferencedColumnName); err != nil {
+		fk := &Constraint{}
+		if err = rows.Scan(&fk.TableName, &fk.ColumnName, &fk.ReferencedColumnName); err != nil {
 			return
 		}
-		table.Dependencies = append(table.Dependencies, dep)
-		table.AppendDebugMsg("Dependency: %s -> %s.%s", dep.ReferencedColumnName, dep.TableName, dep.ColumnName)
+		table.Constraints = append(table.Constraints, fk)
+		table.AppendDebugMsg("Constraint: %s -> %s.%s", fk.ReferencedColumnName, fk.TableName, fk.ColumnName)
 	}
 	if err = rows.Err(); err != nil {
 		return
 	}
-	if _, ok := db.server.args.Dependencies[table.Name]; ok {
-		table.Dependencies = append(table.Dependencies, db.server.args.Dependencies[table.Name]...)
+	if _, ok := db.server.args.Constraints[table.Name]; ok {
+		table.Constraints = append(table.Constraints, db.server.args.Constraints[table.Name]...)
 	}
 	return
 }

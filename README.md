@@ -15,24 +15,24 @@ Currently supports MySQL 5+. Other drivers and versions may be supported in the 
 usage: dbsampler [<flags>] <database>
 
 Flags:
-      --help                  Show context-sensitive help (also try --help-long and --help-man).
-      --version               Show application version.
-  -h, --host="127.0.0.1"      The database host.
-  -P, --port="3306"           The database port.
-      --protocol="tcp"        The protocol to use for the connection (tcp, socket, pip, memory).
-  -u, --user=USER             User for login if not current user.
-  -p, --password=PASSWORD     Password to use when connecting to server. If password is not given it's asked from stderr.
-      --routines              Dump procedures and functions.
-      --triggers              Dump triggers.
-  -l, --limit=100             Max number of rows from each table to dump.
-      --skip-create-database  Disable adding CREATE DATABASE statement.
-      --skip-lock-tables      Disable locking tables on read.
-      --skip-add-drop-table   Disable adding DROP TABLE statements.
-      --extended-insert       Use multiple-row INSERT syntax that include several VALUES lists.
+      --help                 Show context-sensitive help (also try --help-long and --help-man).
+      --version              Show application version.
+  -h, --host="127.0.0.1"     The database host.
+  -P, --port="3306"          The database port.
+      --protocol="tcp"       The protocol to use for the connection (tcp, socket, pip, memory).
+  -u, --user=USER            User for login if not current user.
+  -p, --password=PASSWORD    Password to use when connecting to server. If password is not given it's asked from stderr.
+      --routines             Dump procedures and functions.
+      --triggers             Dump triggers.
+  -l, --limit=100            Max number of rows from each table to dump.
+  -n, --no-create-database   Disable adding CREATE DATABASE statement.
+      --skip-lock-tables     Disable locking tables on read.
+      --skip-add-drop-table  Disable adding DROP TABLE statements.
+      --extended-insert      Use multiple-row INSERT syntax that include several VALUES lists.
       --rename-database=DUMP-NAME  
-                              Use this database name in the dump.
-  -f, --foreign-key=FOREIGN-KEY ...  
-                              Assigns one or more mock foreign keys.
+                             Use this database name in the dump.
+  -c, --constraint=CONSTRAINT ...  
+                             Assigns one or more foreign key constraints.
 
 Args:
   <database>  Name of the database to dump.

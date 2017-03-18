@@ -88,7 +88,7 @@ func (g *MySQL5Dumper) Dump(w io.Writer, db Database) error {
 		return err
 	}
 	vals := MySQL5DumperTemplateValues{
-		ShouldDumpDatabase: !g.args.SkipCreateDatabase,
+		ShouldDumpDatabase: !g.args.NoCreateDatabase,
 		ShouldDumpTables:   true,
 		ShouldDumpViews:    false,
 		ShouldDumpRoutines: g.args.Routines,

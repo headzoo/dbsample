@@ -74,7 +74,7 @@ type Table struct {
 	Collation    string
 	DebugMsgs    []string
 	Columns      ColumnMap
-	Dependencies []*Dependency
+	Constraints  []*Constraint
 	Triggers     TriggerGraph
 	Rows         Rows
 }
@@ -84,7 +84,7 @@ func NewTable() *Table {
 	return &Table{
 		DebugMsgs:    []string{},
 		Columns:      ColumnMap{},
-		Dependencies: []*Dependency{},
+		Constraints: []*Constraint{},
 		Triggers:     TriggerGraph{},
 		Rows:         Rows{},
 	}
@@ -97,8 +97,8 @@ func (t *Table) AppendDebugMsg(s string, v ...interface{}) {
 	}
 }
 
-// Dependency...
-type Dependency struct {
+// Constraint...
+type Constraint struct {
 	TableName            string
 	ColumnName           string
 	ReferencedColumnName string
