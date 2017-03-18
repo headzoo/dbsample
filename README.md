@@ -42,6 +42,11 @@ Args:
   <database>  Name of the database to dump.
 
 Filters:
+Filters alter column values in the dump. For example they can remove passwords or
+other sensitive information. Each --filter flag should be passed the name of the
+filter, e.g. "empty", the name of a table.column, e.g. "users.passwords", and one
+or more arguments.
+
   --filter="empty table.column"
   --filter="repeat table.column <string>"
 
