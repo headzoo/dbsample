@@ -2,7 +2,7 @@ DBSample
 ========
 DBSample creates small samples of large databases while preserving foreign key constraints.
 
-**NOT WORKING YET. DO NOT USE.**
+**ALPHA RELEASE! USE WITH CAUTION!**
 
 Dealing with large development/staging databases is unacceptable in an age of cloud services and containers, where personal dev platforms can be spun up in _seconds_ and then discarded. Containers have made it simple for each member of the dev team to work on their own copy of an application, but often the team is sharing a single dev/staging database at a remote location. Those databases often contain old data, and altering them is impossible without effecting everyone else on the team.
 
@@ -37,4 +37,9 @@ Flags:
 Args:
   <database>  Name of the database to dump.
 
+Examples:
+dbsample --limit=100 blog > dump.sql
+dbsample --limit=100 -h db1 -u admin -p blog > dump.sql
+dbsample --limit=100 --rename-database=blog_dev blog > dump.sql
+dbsample --limit=100 -c "posts.user_id users.id" -c "posts.cat_id categories.id" blog > dump.sql
 ```
