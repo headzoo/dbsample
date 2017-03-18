@@ -64,6 +64,7 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 		}
 	}
 
+	kingpin.UsageTemplate(argsHelpTemplate)
 	kingpin.Version(Version)
 	kingpin.Flag("host", "The database host.").Default("127.0.0.1").Short('h').StringVar(&conn.Host)
 	kingpin.Flag("port", "The database port.").Default("3306").Short('P').StringVar(&conn.Port)
@@ -115,3 +116,55 @@ func ParseFlags() (*ConnectionArgs, *DumpArgs, error) {
 
 	return conn, args, nil
 }
+
+var argsHelpTemplate = `{{define "FormatCommand"}}\
+{{if .FlagSummary}} {{.FlagSummary}}{{end}}\
+{{range .Args}} {{if not .Required}}[{{end}}<{{.Name}}>{{if .Value|IsCumulative}}...{{end}}{{if not .Required}}]{{end}}{{end}}\
+{{end}}\
+
+{{define "FormatCommands"}}\
+{{range .FlattenedCommands}}\
+{{if not .Hidden}}\
+  {{.FullCommand}}{{if .Default}}*{{end}}{{template "FormatCommand" .}}
+{{.Help|Wrap 4}}
+{{end}}\
+{{end}}\
+{{end}}\
+
+{{define "FormatUsage"}}\
+{{template "FormatCommand" .}}{{if .Commands}} <command> [<args> ...]{{end}}
+{{if .Help}}
+{{.Help|Wrap 0}}\
+{{end}}\
+
+{{end}}\
+
+{{if .Context.SelectedCommand}}\
+usage: {{.App.Name}} {{.Context.SelectedCommand}}{{template "FormatUsage" .Context.SelectedCommand}}
+{{else}}\
+usage: {{.App.Name}}{{template "FormatUsage" .App}}
+{{end}}\
+{{if .Context.Flags}}\
+Flags:
+{{.Context.Flags|FlagsToTwoColumns|FormatTwoColumns}}
+{{end}}\
+{{if .Context.Args}}\
+Args:
+{{.Context.Args|ArgsToTwoColumns|FormatTwoColumns}}
+{{end}}\
+{{if .Context.SelectedCommand}}\
+{{if len .Context.SelectedCommand.Commands}}\
+Subcommands:
+{{template "FormatCommands" .Context.SelectedCommand}}
+{{end}}\
+{{else if .App.Commands}}\
+Commands:
+{{template "FormatCommands" .App}}
+{{end}}\
+
+Examples:
+dbsampler --limit=100 blog > dump.sql
+dbsampler --limit=100 -h db1 -u admin -p blog > dump.sql
+dbsampler --limit=100 --rename-database=blog_dev blog > dump.sql
+dbsampler --limit=100 -c "posts.user_id users.id" -c "posts.cat_id categories.id" blog > dump.sql
+`
