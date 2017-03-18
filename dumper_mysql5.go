@@ -28,6 +28,7 @@ type MySQL5DumperTemplateValues struct {
 	AppName            string
 	AppVersion         string
 	DumpDate           string
+	DumpDuration       string
 	CharSet            string
 	Collation          string
 	OriginalDatabaseName string
@@ -57,6 +58,7 @@ func NewMySQL5Dumper(args *DumpArgs) *MySQL5Dumper {
 
 // Dump...
 func (g *MySQL5Dumper) Dump(w io.Writer, db Database) error {
+	start := time.Now()
 	tables, err := db.Tables()
 	if err != nil {
 		return err
@@ -102,6 +104,7 @@ func (g *MySQL5Dumper) Dump(w io.Writer, db Database) error {
 		CharSet:            db.CharSet(),
 		Collation:          db.Collation(),
 		DumpDate:           time.Now().Format("2006-01-02 15:04:05"),
+		DumpDuration:       fmt.Sprintf("%s", time.Since(start)),
 		Connection:         db.Server().conn,
 		Server:             db.Server(),
 		Tables:             tables,
