@@ -1,6 +1,8 @@
 package filters
 
-import "errors"
+import (
+	"errors"
+)
 
 // EmptyFilter returns an empty column value.
 type EmptyFilter struct {
@@ -19,7 +21,7 @@ func (f *EmptyFilter) Filter(value *string, dataType string, maxLength int64, ar
 
 // ValidateArgs...
 func (f *EmptyFilter) ValidateArgs(args []string) error {
-	if len(args) != 1 {
+	if len(args) != 0 {
 		return errors.New(`Filter "empty" expects exactly 0 arguments.`)
 	}
 	return nil
