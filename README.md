@@ -1,6 +1,6 @@
 DBSample
 ========
-DBSample creates small samples of large databases while preserving foreign key constraints.
+DBSample creates database dumps which _make sense_.
 
 **ALPHA RELEASE! USE WITH CAUTION!**
 
